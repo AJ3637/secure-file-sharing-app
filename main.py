@@ -62,6 +62,8 @@ html = '''
 </head>
 <body>
     <h1>🔐 Secure File Sharing App</h1>
+    <p><a href="/files">📁 View Uploaded Files</a></p>
+
     
     <form method="POST" enctype="multipart/form-data" action="/upload">
         <h3>Upload & Encrypt</h3>
@@ -74,6 +76,12 @@ html = '''
         <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
         <input type="submit" value="Download File">
     </form>
+    <form method="POST" action="/delete">
+    <h3>Delete File</h3>
+    <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
+    <input type="submit" value="Delete File">
+</form>
+
 </body>
 </html>
 '''
@@ -101,10 +109,32 @@ def download():
     else:
         return "File not found"
 
+@app.route('/delete', methods=['POST'])
+def delete():
+    filename = request.form.get('filename')
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return f"File '{filename}' deleted successfully."
+    else:
+        return "File not found."
+
+@app.route('/files')
+def list_files():
+    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    file_links = ''
+    for f in files:
+        file_links += f"<li>{f} – <a href='/download?filename={f}'>Download</a> | " \
+                      f"<form action='/delete' method='POST' style='display:inline;'> " \
+                      f"<input type='hidden' name='filename' value='{f}'>" \
+                      f"<input type='submit' value='Delete'></form></li>"
+    return f"<h2>Uploaded Files</h2><ul>{file_links}</ul><br><a href='/'>Back to Home</a>"
+
+
+
 
 if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
 
