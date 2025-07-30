@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: secure-file-sharing
+    env: python
+    buildCommand: ""
+    startCommand: "python main.py"
+    envVars:
+      - key: FLASK_ENV
+        value: production
