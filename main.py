@@ -122,6 +122,11 @@ def delete():
 @app.route('/files')
 def list_files():
     files = os.listdir(app.config['UPLOAD_FOLDER'])
+    files = [f for f in files if f != '.gitkeep']  # ✅ Exclude .gitkeep
+
+    if not files:
+        return "<h2>No uploaded files.</h2><a href='/'>Back to Home</a>"
+
     file_links = ''
     for f in files:
         file_links += f"<li>{f} – <a href='/download?filename={f}'>Download</a> | " \
@@ -129,8 +134,6 @@ def list_files():
                       f"<input type='hidden' name='filename' value='{f}'>" \
                       f"<input type='submit' value='Delete'></form></li>"
     return f"<h2>Uploaded Files</h2><ul>{file_links}</ul><br><a href='/'>Back to Home</a>"
-
-
 
 
 if __name__ == '__main__':
