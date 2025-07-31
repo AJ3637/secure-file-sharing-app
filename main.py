@@ -115,16 +115,29 @@ def admin_dashboard():
                 for filename, token in files.items():
                     all_files.append({"user": user, "file": filename, "token": token})
 
-    file_html = "".join([f"<li><b>{f['file']}</b> (by {f['user']}) - Token: {f['token']}</li>" for f in all_files])
-    user_html = "".join([f"<li>{u}</li>" for u in users])
-    log_html = "".join([f"<li>{l['user']} downloaded {l['filename']} at {l['timestamp']}</li>" for l in logs])
+    # Generate HTML content
+    file_html = ""
+    for f in all_files:
+        file_html += f"""
+        <li>
+            <b>{f['file']}</b> (by <i>{f['user']}</i>) — Token: <code>{f['token']}</code><br>
+            <a href="/download?filename={f['file']}&token={f['token']}">🔽 Download</a> |
+            <form action="/delete" method="POST" style="display:inline;">
+                <input type="hidden" name="filename" value="{f['file']}">
+                <input type="submit" value="🗑 Delete">
+            </form>
+        </li>
+        """
+
+    user_html = "".join([f"<li>👤 {u}</li>" for u in users])
+    log_html = "".join([f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>" for l in logs])
 
     return f"""
     <h2>⚙️ Admin Dashboard</h2>
     <h3>📁 All Uploaded Files</h3><ul>{file_html}</ul>
     <h3>👥 Registered Users</h3><ul>{user_html}</ul>
     <h3>📊 Download Logs</h3><ul>{log_html}</ul>
-    <br><a href='/'>Back to Home</a>
+    <br><a href='/'>🏠 Back to Home</a>
     """
 
 # Keep all your existing routes unchanged here...
