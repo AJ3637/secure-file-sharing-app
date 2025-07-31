@@ -115,7 +115,6 @@ def admin_dashboard():
                 for filename, token in files.items():
                     all_files.append({"user": user, "file": filename, "token": token})
 
-    # Generate HTML content
     file_html = ""
     for f in all_files:
         file_html += f"""
@@ -130,11 +129,10 @@ def admin_dashboard():
         """
 
     user_html = "".join([f"<li>👤 <a href='#'>{u}</a></li>" for u in users])
-log_html = "".join([
-    f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>"
-    for l in logs
-])
-
+    log_html = "".join([
+        f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>"
+        for l in logs
+    ])
 
     return f"""
     <h2>⚙️ Admin Dashboard</h2>
@@ -142,6 +140,8 @@ log_html = "".join([
     <h3>👥 Registered Users</h3><ul>{user_html}</ul>
     <h3>📊 Download Logs</h3><ul>{log_html}</ul>
     <br><a href='/'>🏠 Back to Home</a>
+    """
+
     """
 
 # Keep all your existing routes unchanged here...
