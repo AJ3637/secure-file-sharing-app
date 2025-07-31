@@ -1,22 +1,65 @@
-from flask import Flask, request, send_file
-from werkzeug.utils import secure_filename
+from flask import Flask, request, render_template_string, send_from_directory, redirect, url_for
 import os
-from encryption import encrypt_file, decrypt_file
 import json
 import secrets
+from encryption import generate_key, encrypt_file, decrypt_file
+
+generate_key()
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'files'
+UPLOAD_FOLDER = "files"
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# Ensure files folder and encryption key exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+generate_key()
 
-# HTML Interface
+# HTML UI
 html = '''
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Secure File Sharing</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 {
+            color: #2d3748;
+        }
+        form {
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            width: 300px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        input[type="file"], input[type="text"] {
+            width: 90%;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        input[type="submit"] {
+            background-color: #2b6cb0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #2c5282;
+        }
+        .message {
+            margin-top: 20px;
+            color: green;
+        }
+    </style>
 </head>
 <body>
     <h1>🔐 Secure File Sharing App</h1>
@@ -34,52 +77,54 @@ html = '''
         <input type="text" name="token" placeholder="Enter access token" required><br>
         <input type="submit" value="Download File">
     </form>
+
+    <form method="POST" action="/delete">
+        <h3>Delete File</h3>
+        <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
+        <input type="submit" value="Delete File">
+    </form>
+
 </body>
 </html>
 '''
 
 @app.route('/')
 def home():
-    return html
+    return render_template_string(html)
 
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files['file']
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        encrypt_file(filepath)
-        os.remove(filepath)  # remove original
+    filename = file.filename
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    encrypt_file(filepath)
+    os.remove(filepath)  # remove original unencrypted file
 
-        # Generate secure random token
-        token = secrets.token_urlsafe(8)
+    # Auto-generate token
+    token = secrets.token_urlsafe(8)
 
-        # Save token
-        if os.path.exists("tokens.json"):
-            with open("tokens.json", "r") as f:
-                tokens = json.load(f)
-        else:
-            tokens = {}
+    # Save token
+    tokens = {}
+    if os.path.exists("tokens.json"):
+        with open("tokens.json", "r") as f:
+            tokens = json.load(f)
+    tokens[filename] = token
+    with open("tokens.json", "w") as f:
+        json.dump(tokens, f)
 
-        tokens[filename] = token
-
-        with open("tokens.json", "w") as f:
-            json.dump(tokens, f)
-
-        return f"✅ File '{filename}' uploaded and encrypted.<br><b>Your token: {token}</b><br>Share this token securely with the downloader.<br><a href='/'>Back to Home</a>"
+    return f"✅ File '{filename}' uploaded and encrypted successfully!<br><b>Your token:</b> {token}<br>Share this token with the downloader.<br><a href='/'>Back to Home</a>"
 
 @app.route('/download')
 def download():
     filename = request.args.get('filename')
     token_input = request.args.get('token')
 
-    # Load token list
+    # Load tokens
+    tokens = {}
     if os.path.exists("tokens.json"):
         with open("tokens.json", "r") as f:
             tokens = json.load(f)
-    else:
-        tokens = {}
 
     if filename not in tokens:
         return "❌ File not found or token not set."
@@ -87,11 +132,12 @@ def download():
     if tokens[filename] != token_input:
         return "🔐 Invalid token. Access denied."
 
-    encrypted_file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    decrypted_file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"decrypted_{filename}")
-    decrypt_file(encrypted_file_path, decrypted_file_path)
-
-    return send_file(decrypted_file_path, as_attachment=True)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(filepath):
+        decrypt_file(filepath)
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    else:
+        return "❌ Encrypted file not found."
 
 @app.route('/delete', methods=['POST'])
 def delete():
@@ -100,7 +146,7 @@ def delete():
     if os.path.exists(filepath):
         os.remove(filepath)
 
-        # Remove token
+        # Also remove token
         if os.path.exists("tokens.json"):
             with open("tokens.json", "r") as f:
                 tokens = json.load(f)
