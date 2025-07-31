@@ -2,10 +2,10 @@ from flask import Flask, request, render_template_string, send_from_directory, s
 import os
 import json
 import secrets
+from datetime import datetime
 from encryption import generate_key, encrypt_file, decrypt_file
 from auth import init_db, register_user, validate_user
 
-# Initialize app and encryption key
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 UPLOAD_FOLDER = "files"
@@ -14,7 +14,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 generate_key()
 init_db()
 
-# HTML Interface
+# Ensure download log exists
+if not os.path.exists("downloads.json"):
+    with open("downloads.json", "w") as f:
+        json.dump([], f)
+
 html = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -28,9 +32,7 @@ html = '''
             padding: 40px;
             text-align: center;
         }
-        h1 {
-            color: #2d3748;
-        }
+        h1 { color: #2d3748; }
         form {
             margin: 20px auto;
             padding: 20px;
@@ -52,16 +54,18 @@ html = '''
             border-radius: 5px;
             cursor: pointer;
         }
-        input[type="submit"]:hover {
-            background-color: #2c5282;
-        }
+        input[type="submit"]:hover { background-color: #2c5282; }
     </style>
 </head>
 <body>
     <h1>🔐 Secure File Sharing App</h1>
     {% if 'user' in session %}
         <p>Welcome, {{ session['user'] }} | <a href="/logout">Logout</a></p>
-        <p><a href="/files">📁 View Uploaded Files</a></p>
+        {% if session['user'] == 'admin' %}
+            <p><a href="/admin">⚙️ Admin Dashboard</a></p>
+        {% else %}
+            <p><a href="/files">📁 View Uploaded Files</a></p>
+        {% endif %}
 
         <form method="POST" enctype="multipart/form-data" action="/upload">
             <h3>Upload & Encrypt</h3>
@@ -87,6 +91,44 @@ html = '''
 </body>
 </html>
 '''
+
+@app.route('/admin')
+def admin_dashboard():
+    if 'user' not in session or session['user'] != 'admin':
+        return "⛔ Access denied."
+
+    logs = []
+    if os.path.exists("downloads.json"):
+        with open("downloads.json", "r") as f:
+            logs = json.load(f)
+
+    users = []
+    if os.path.exists("users.json"):
+        with open("users.json", "r") as f:
+            users = list(json.load(f).keys())
+
+    all_files = []
+    if os.path.exists("user_files.json"):
+        with open("user_files.json", "r") as f:
+            all_files_data = json.load(f)
+            for user, files in all_files_data.items():
+                for filename, token in files.items():
+                    all_files.append({"user": user, "file": filename, "token": token})
+
+    file_html = "".join([f"<li><b>{f['file']}</b> (by {f['user']}) - Token: {f['token']}</li>" for f in all_files])
+    user_html = "".join([f"<li>{u}</li>" for u in users])
+    log_html = "".join([f"<li>{l['user']} downloaded {l['filename']} at {l['timestamp']}</li>" for l in logs])
+
+    return f"""
+    <h2>⚙️ Admin Dashboard</h2>
+    <h3>📁 All Uploaded Files</h3><ul>{file_html}</ul>
+    <h3>👥 Registered Users</h3><ul>{user_html}</ul>
+    <h3>📊 Download Logs</h3><ul>{log_html}</ul>
+    <br><a href='/'>Back to Home</a>
+    """
+
+# Keep all your existing routes unchanged here...
+
 
 @app.route('/')
 def home():
