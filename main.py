@@ -129,8 +129,12 @@ def admin_dashboard():
         </li>
         """
 
-    user_html = "".join([f"<li>👤 {u}</li>" for u in users])
-    log_html = "".join([f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>" for l in logs])
+    user_html = "".join([f"<li>👤 <a href='#'>{u}</a></li>" for u in users])
+log_html = "".join([
+    f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>"
+    for l in logs
+])
+
 
     return f"""
     <h2>⚙️ Admin Dashboard</h2>
