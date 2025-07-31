@@ -155,16 +155,27 @@ def list_files():
     files = os.listdir(app.config['UPLOAD_FOLDER'])
     files = [f for f in files if not f.startswith('.')]
 
+    # Load tokens
+    if os.path.exists("tokens.json"):
+        with open("tokens.json", "r") as f:
+            tokens = json.load(f)
+    else:
+        tokens = {}
+
     if not files:
         return "<h2>No uploaded files.</h2><a href='/'>Back to Home</a>"
 
     file_links = ''
     for f in files:
-        file_links += f"<li>{f} – <a href='/download?filename={f}'>Download</a> | " \
+        token_display = tokens.get(f, "🔒 Token not found")
+        file_links += f"<li><b>{f}</b><br>🔑 Token: <code>{token_display}</code><br>" \
+                      f"<a href='/download?filename={f}'>Download</a> | " \
                       f"<form action='/delete' method='POST' style='display:inline;'> " \
                       f"<input type='hidden' name='filename' value='{f}'>" \
-                      f"<input type='submit' value='Delete'></form></li>"
+                      f"<input type='submit' value='Delete'></form></li><br>"
+
     return f"<h2>Uploaded Files</h2><ul>{file_links}</ul><br><a href='/'>Back to Home</a>"
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
