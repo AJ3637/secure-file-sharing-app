@@ -142,7 +142,6 @@ def admin_dashboard():
     <br><a href='/'>🏠 Back to Home</a>
     """
 
-    """
 
 # Keep all your existing routes unchanged here...
 
