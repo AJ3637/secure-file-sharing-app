@@ -1,20 +1,17 @@
-from flask import Flask, request, render_template_string, send_from_directory, redirect, url_for
+from flask import Flask, request, render_template_string, send_from_directory
 import os
 import json
 import secrets
 from encryption import generate_key, encrypt_file, decrypt_file
 
+# Initialize key and folder
 generate_key()
-
 app = Flask(__name__)
 UPLOAD_FOLDER = "files"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Ensure files folder and encryption key exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-generate_key()
 
-# HTML UI
+# HTML Interface
 html = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -55,10 +52,6 @@ html = '''
         input[type="submit"]:hover {
             background-color: #2c5282;
         }
-        .message {
-            margin-top: 20px;
-            color: green;
-        }
     </style>
 </head>
 <body>
@@ -83,7 +76,6 @@ html = '''
         <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
         <input type="submit" value="Delete File">
     </form>
-
 </body>
 </html>
 '''
@@ -98,13 +90,12 @@ def upload():
     filename = file.filename
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
+
+    # Encrypt the uploaded file (overwrite same file)
     encrypt_file(filepath)
-    os.remove(filepath)  # remove original unencrypted file
 
-    # Auto-generate token
+    # Generate and save a random token
     token = secrets.token_urlsafe(8)
-
-    # Save token
     tokens = {}
     if os.path.exists("tokens.json"):
         with open("tokens.json", "r") as f:
@@ -113,18 +104,19 @@ def upload():
     with open("tokens.json", "w") as f:
         json.dump(tokens, f)
 
-    return f"✅ File '{filename}' uploaded and encrypted successfully!<br><b>Your token:</b> {token}<br>Share this token with the downloader.<br><a href='/'>Back to Home</a>"
+    return f"✅ File '{filename}' uploaded and encrypted.<br><b>Your token:</b> {token}<br>Share this token with the downloader.<br><a href='/'>Back to Home</a>"
 
 @app.route('/download')
 def download():
     filename = request.args.get('filename')
     token_input = request.args.get('token')
 
-    # Load tokens
-    tokens = {}
+    # Load saved tokens
     if os.path.exists("tokens.json"):
         with open("tokens.json", "r") as f:
             tokens = json.load(f)
+    else:
+        return "❌ No tokens found."
 
     if filename not in tokens:
         return "❌ File not found or token not set."
@@ -146,7 +138,7 @@ def delete():
     if os.path.exists(filepath):
         os.remove(filepath)
 
-        # Also remove token
+        # Remove token
         if os.path.exists("tokens.json"):
             with open("tokens.json", "r") as f:
                 tokens = json.load(f)
@@ -154,14 +146,14 @@ def delete():
             with open("tokens.json", "w") as f:
                 json.dump(tokens, f)
 
-        return f"🗑️ File '{filename}' deleted successfully.<br><a href='/'>Back</a>"
+        return f"🗑️ File '{filename}' deleted.<br><a href='/'>Back</a>"
     else:
         return "❌ File not found."
 
 @app.route('/files')
 def list_files():
     files = os.listdir(app.config['UPLOAD_FOLDER'])
-    files = [f for f in files if f != '.gitkeep']
+    files = [f for f in files if not f.startswith('.')]
 
     if not files:
         return "<h2>No uploaded files.</h2><a href='/'>Back to Home</a>"
