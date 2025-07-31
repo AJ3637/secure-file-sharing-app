@@ -1,6 +1,5 @@
 from flask import Flask, request, render_template_string, session, redirect, url_for
 from auth import init_db, register_user, validate_user
-
 from flask import Flask, request, render_template_string, send_from_directory
 import os
 import json
