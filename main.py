@@ -171,24 +171,22 @@ def download():
     if not filename or not token_input:
         return "❌ Missing filename or token."
 
+    # Load user_files.json
     with open("user_files.json", "r") as f:
         user_files = json.load(f)
 
-    username = session['user']
-    user_data = user_files.get(username, {})
+    # 🔍 Search through all users for this file + token
+    for user_data in user_files.values():
+        if filename in user_data and user_data[filename] == token_input:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                decrypt_file(filepath)
+                return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+            else:
+                return "❌ Encrypted file missing."
 
-    if filename not in user_data:
-        return "❌ File not found or not owned by you."
+    return "❌ File not found or token is invalid."
 
-    if user_data[filename] != token_input:
-        return "🔐 Invalid token."
-
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if os.path.exists(filepath):
-        decrypt_file(filepath)
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
-    else:
-        return "❌ Encrypted file missing."
 
 @app.route('/delete', methods=['POST'])
 def delete():
