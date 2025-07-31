@@ -1,17 +1,18 @@
-from flask import Flask, request, render_template_string, session, redirect, url_for
-from auth import init_db, register_user, validate_user
-from flask import Flask, request, render_template_string, send_from_directory
+from flask import Flask, request, render_template_string, send_from_directory, session, redirect, url_for
 import os
 import json
 import secrets
 from encryption import generate_key, encrypt_file, decrypt_file
+from auth import init_db, register_user, validate_user
 
-# Initialize key and folder
-generate_key()
+# Initialize app and encryption key
 app = Flask(__name__)
+app.secret_key = 'supersecretkey'
 UPLOAD_FOLDER = "files"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+generate_key()
+init_db()
 
 # HTML Interface
 html = '''
@@ -38,7 +39,7 @@ html = '''
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        input[type="file"], input[type="text"] {
+        input[type="file"], input[type="text"], input[type="password"] {
             width: 90%;
             padding: 10px;
             margin-bottom: 15px;
@@ -58,26 +59,31 @@ html = '''
 </head>
 <body>
     <h1>🔐 Secure File Sharing App</h1>
-    <p><a href="/files">📁 View Uploaded Files</a></p>
+    {% if 'user' in session %}
+        <p>Welcome, {{ session['user'] }} | <a href="/logout">Logout</a></p>
+        <p><a href="/files">📁 View Uploaded Files</a></p>
 
-    <form method="POST" enctype="multipart/form-data" action="/upload">
-        <h3>Upload & Encrypt</h3>
-        <input type="file" name="file" required><br>
-        <input type="submit" value="Upload File">
-    </form>
+        <form method="POST" enctype="multipart/form-data" action="/upload">
+            <h3>Upload & Encrypt</h3>
+            <input type="file" name="file" required><br>
+            <input type="submit" value="Upload File">
+        </form>
 
-    <form method="GET" action="/download">
-        <h3>Download & Decrypt</h3>
-        <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
-        <input type="text" name="token" placeholder="Enter access token" required><br>
-        <input type="submit" value="Download File">
-    </form>
+        <form method="GET" action="/download">
+            <h3>Download & Decrypt</h3>
+            <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
+            <input type="text" name="token" placeholder="Enter access token" required><br>
+            <input type="submit" value="Download File">
+        </form>
 
-    <form method="POST" action="/delete">
-        <h3>Delete File</h3>
-        <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
-        <input type="submit" value="Delete File">
-    </form>
+        <form method="POST" action="/delete">
+            <h3>Delete File</h3>
+            <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
+            <input type="submit" value="Delete File">
+        </form>
+    {% else %}
+        <p><a href="/login">Login</a> or <a href="/register">Register</a> to use the app.</p>
+    {% endif %}
 </body>
 </html>
 '''
@@ -85,6 +91,44 @@ html = '''
 @app.route('/')
 def home():
     return render_template_string(html)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        uname = request.form['username']
+        pwd = request.form['password']
+        if register_user(uname, pwd):
+            return redirect('/login')
+        else:
+            return "❌ Username already exists. <a href='/register'>Try again</a>"
+    return '''<h2>Register</h2>
+    <form method="POST">
+        Username: <input name="username"><br>
+        Password: <input type="password" name="password"><br>
+        <input type="submit" value="Register">
+    </form>'''
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        uname = request.form['username']
+        pwd = request.form['password']
+        if validate_user(uname, pwd):
+            session['user'] = uname
+            return redirect('/')
+        else:
+            return "❌ Invalid login. <a href='/login'>Try again</a>"
+    return '''<h2>Login</h2>
+    <form method="POST">
+        Username: <input name="username"><br>
+        Password: <input type="password" name="password"><br>
+        <input type="submit" value="Login">
+    </form>'''
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect('/')
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -116,7 +160,6 @@ def upload():
 
     return f"✅ File '{filename}' uploaded and encrypted.<br><b>Your token:</b> {token}<br><a href='/'>Back to Home</a>"
 
-
 @app.route('/download')
 def download():
     if 'user' not in session:
@@ -146,7 +189,6 @@ def download():
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
     else:
         return "❌ Encrypted file missing."
-
 
 @app.route('/delete', methods=['POST'])
 def delete():
@@ -194,52 +236,6 @@ def list_files():
 
     return f"<h2>Your Uploaded Files</h2><ul>{file_links}</ul><br><a href='/'>Back</a>"
 
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        uname = request.form['username']
-        pwd = request.form['password']
-        if register_user(uname, pwd):
-            return redirect('/login')
-        else:
-            return "❌ Username already exists. <a href='/register'>Try again</a>"
-    return '''
-    <h2>Register</h2>
-    <form method="POST">
-        Username: <input name="username"><br>
-        Password: <input type="password" name="password"><br>
-        <input type="submit" value="Register">
-    </form>
-    '''
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        uname = request.form['username']
-        pwd = request.form['password']
-        if validate_user(uname, pwd):
-            session['user'] = uname
-            return redirect('/')
-        else:
-            return "❌ Invalid login. <a href='/login'>Try again</a>"
-    return '''
-    <h2>Login</h2>
-    <form method="POST">
-        Username: <input name="username"><br>
-        Password: <input type="password" name="password"><br>
-        <input type="submit" value="Login">
-    </form>
-    '''
-
-@app.route('/logout')
-def logout():
-    session.pop('user', None)
-    return redirect('/')
-
-
-
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    init_db()  # Create user table if not exists
     app.run(host='0.0.0.0', port=port)
