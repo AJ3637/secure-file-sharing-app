@@ -1,4 +1,4 @@
-<!-- ======================= home.html ======================= -->
+<!-- ======================= home.html (Updated with Admin Panel) ======================= -->
 {% extends "layout.html" %}
 {% block content %}
 <div class="container mt-5">
@@ -11,7 +11,22 @@
   {% endwith %}
 
   {% if session.user %}
-    <h2>Welcome, {{ session.user }}!</h2>
+    <h2 class="mb-3">Welcome, {{ session.user }}</h2>
+
+    {% if session.user == 'admin' %}
+      <div class="card mb-4">
+        <div class="card-header">⚙️ Admin Dashboard</div>
+        <div class="card-body">
+          <ul class="list-group">
+            <li class="list-group-item"><a href="/admin/users">👥 View All Users</a></li>
+            <li class="list-group-item"><a href="/admin/files">📁 All Uploaded Files</a></li>
+            <li class="list-group-item"><a href="/admin/logins">📄 Login Logs</a></li>
+            <li class="list-group-item"><a href="/admin/downloads">📊 Download Logs</a></li>
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
     <form method="POST" action="/upload" enctype="multipart/form-data" class="mb-4">
       <div class="input-group">
         <input type="file" name="file" required class="form-control">
@@ -35,12 +50,13 @@
         </li>
       {% endfor %}
     </ul>
-    <br>
-    <a href="/logout" class="btn btn-outline-danger">Logout</a>
   {% else %}
-    <h2>Welcome to Secure File Sharing</h2>
-    <a href="/login" class="btn btn-primary me-2">Login</a>
-    <a href="/register" class="btn btn-secondary">Register</a>
+    <div class="text-center">
+      <h2 class="mb-4">🔐 Secure File Sharing App</h2>
+      <p>End-to-End Encrypted Secure File Transfer with Token & QR Authentication</p>
+      <a href="/login" class="btn btn-primary me-2">Login</a>
+      <a href="/register" class="btn btn-outline-secondary">Register</a>
+    </div>
   {% endif %}
 </div>
 {% endblock %}
