@@ -1,3 +1,5 @@
 flask
 werkzeug
 cryptography
+qrcode[pil]
+
