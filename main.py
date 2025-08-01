@@ -218,6 +218,7 @@ def list_files():
 def admin():
     if 'user' not in session or session['user'] != 'admin':
         return "⛔ Access denied."
+
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("SELECT * FROM users")
@@ -227,23 +228,26 @@ def admin():
         c.execute("SELECT * FROM downloads")
         logs = c.fetchall()
 
-   user_html = "".join([
-    f"<li>{u[0]} "
-    f"<form action='/admin/delete_user' method='POST' style='display:inline;'>"
-    f"<input type='hidden' name='username' value='{u[0]}'>"
-    f"<input type='submit' value='🗑 Delete User'></form></li>"
-    for u in users
-])
+    user_html = "".join([
+        f"<li>{u[0]} "
+        f"<form action='/admin/delete_user' method='POST' style='display:inline;'>"
+        f"<input type='hidden' name='username' value='{u[0]}'>"
+        f"<input type='submit' value='🗑 Delete User'></form></li>"
+        for u in users
+    ])
 
-   file_html = "".join([
-    f"<li>{f[1]} (by {f[0]}) — Token: {f[2]} "
-    f"<form action='/admin/delete_file' method='POST' style='display:inline;'>"
-    f"<input type='hidden' name='filename' value='{f[1]}'>"
-    f"<input type='submit' value='🗑 Delete File'></form></li>"
-    for f in files
-])
+    file_html = "".join([
+        f"<li>{f[1]} (by {f[0]}) — Token: {f[2]} "
+        f"<form action='/admin/delete_file' method='POST' style='display:inline;'>"
+        f"<input type='hidden' name='filename' value='{f[1]}'>"
+        f"<input type='submit' value='🗑 Delete File'></form></li>"
+        for f in files
+    ])
 
-    log_html = "".join([f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>" for l in logs])
+    log_html = "".join([
+        f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>"
+        for l in logs
+    ])
 
     return f"""
     <h2>⚙️ Admin Dashboard</h2>
@@ -252,6 +256,7 @@ def admin():
     <h3>📊 Download Logs</h3><ul>{log_html}</ul>
     <a href='/'>Back to Home</a>
     """
+
 
 @app.route('/admin/delete_user', methods=['POST'])
 def admin_delete_user():
