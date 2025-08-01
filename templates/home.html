@@ -45,7 +45,7 @@
     <ul class="list-group">
       {% for file, token, expiry in files %}
         <li class="list-group-item">
-          {{ file }} | Token: <strong>{{ token }}</strong> (expires: {{ expiry.split('T')[0] }} {{ expiry.split('T')[1][:5] }})
+          {{ file }} | Token: <strong>{{ token }}</strong>
           <a href="/qr/{{ token }}" class="btn btn-sm btn-outline-secondary float-end">QR</a>
         </li>
       {% endfor %}
