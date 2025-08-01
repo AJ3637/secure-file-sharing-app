@@ -1,8 +1,10 @@
-from flask import Flask, request, redirect, session, send_from_directory, render_template_string
+from flask import Flask, request, redirect, session, send_from_directory, render_template_string, send_file
 import os
 import sqlite3
 from cryptography.fernet import Fernet
 from datetime import datetime
+import qrcode
+from io import BytesIO
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -14,7 +16,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 if not os.path.exists("secret.key"):
     with open("secret.key", "wb") as key_file:
         key_file.write(Fernet.generate_key())
-
 with open("secret.key", "rb") as key_file:
     key = key_file.read()
 
@@ -31,7 +32,7 @@ def init_db():
 
 init_db()
 
-# Home HTML (Bootstrap)
+# Home HTML with QR
 home_html = '''
 <!DOCTYPE html>
 <html>
@@ -87,10 +88,13 @@ home_html = '''
         {% for f in files %}
           <li class="list-group-item d-flex justify-content-between align-items-center">
             {{ f[1] }} — Token: <code>{{ f[2] }}</code>
-            <form method="POST" action="/delete_file" class="ms-2">
-              <input type="hidden" name="filename" value="{{ f[1] }}">
-              <button class="btn btn-danger btn-sm">Delete</button>
-            </form>
+            <div>
+              <a href="/qr/{{ f[2] }}" target="_blank" class="btn btn-sm btn-outline-secondary">📱 QR</a>
+              <form method="POST" action="/delete_file" class="d-inline">
+                <input type="hidden" name="filename" value="{{ f[1] }}">
+                <button class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </div>
           </li>
         {% endfor %}
       </ul>
@@ -133,9 +137,7 @@ def register():
                 return redirect('/login')
             except:
                 return "Username already exists."
-    return '''<form method="POST">
-              Username: <input name="username"><br>Password: <input name="password"><br>
-              <input type="submit" value="Register"></form>'''
+    return '''<form method="POST">Username: <input name="username"><br>Password: <input name="password"><br><input type="submit" value="Register"></form>'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -149,9 +151,7 @@ def login():
                 session['user'] = uname
                 return redirect('/')
             return "❌ Invalid login. Try again"
-    return '''<form method="POST">
-              Username: <input name="username"><br>Password: <input name="password"><br>
-              <input type="submit" value="Login"></form>'''
+    return '''<form method="POST">Username: <input name="username"><br>Password: <input name="password"><br><input type="submit" value="Login"></form>'''
 
 @app.route('/logout')
 def logout():
@@ -212,7 +212,15 @@ def delete_file():
         os.remove(filepath)
     return redirect('/')
 
-# Admin dashboard and controls
+@app.route('/qr/<token>')
+def generate_qr(token):
+    url = request.url_root.rstrip('/') + "/download?token=" + token
+    qr = qrcode.make(url)
+    buf = BytesIO()
+    qr.save(buf, format='PNG')
+    buf.seek(0)
+    return send_file(buf, mimetype='image/png')
+
 @app.route('/admin')
 def admin():
     if session.get('user') != 'admin':
