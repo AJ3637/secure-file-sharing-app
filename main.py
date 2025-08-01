@@ -177,9 +177,13 @@ def upload():
         conn.commit()
     return f"<div class='alert alert-success'>✅ File uploaded!<br>Token: <b>{token}</b><br><a href='/'>Back to Home</a></div>"
 
-@app.route('/download', methods=['POST'])
+@app.route('/download', methods=['GET', 'POST'])
 def download():
-    token = request.form['token']
+    if request.method == 'POST':
+        token = request.form['token']
+    else:
+        token = request.args.get('token')
+
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("SELECT * FROM files WHERE token=?", (token,))
@@ -193,10 +197,11 @@ def download():
                 f.write(decrypted)
             with sqlite3.connect("app.db") as conn:
                 c = conn.cursor()
-                c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session['user'], file[1], datetime.now().isoformat()))
+                c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get('user', 'guest'), file[1], datetime.now().isoformat()))
                 conn.commit()
             return send_from_directory(UPLOAD_FOLDER, file[1], as_attachment=True)
     return "<div class='alert alert-danger'>❌ Invalid token or file not found.<br><a href='/'>Back</a></div>"
+
 
 @app.route('/delete_file', methods=['POST'])
 def delete_file():
