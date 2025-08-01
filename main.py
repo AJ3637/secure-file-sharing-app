@@ -1,10 +1,9 @@
 from flask import Flask, request, render_template_string, send_from_directory, session, redirect, url_for
 import os
-import json
 import secrets
+import sqlite3
 from datetime import datetime
 from encryption import generate_key, encrypt_file, decrypt_file
-from auth import init_db, register_user, validate_user
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -12,12 +11,36 @@ UPLOAD_FOLDER = "files"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 generate_key()
-init_db()
 
-# Ensure download log exists
-if not os.path.exists("downloads.json"):
-    with open("downloads.json", "w") as f:
-        json.dump([], f)
+# Initialize SQLite database
+def init_db():
+    conn = sqlite3.connect("app.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS files (
+            username TEXT,
+            filename TEXT,
+            token TEXT,
+            PRIMARY KEY (username, filename)
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS downloads (
+            username TEXT,
+            filename TEXT,
+            timestamp TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 html = '''
 <!DOCTYPE html>
@@ -92,60 +115,6 @@ html = '''
 </html>
 '''
 
-@app.route('/admin')
-def admin_dashboard():
-    if 'user' not in session or session['user'] != 'admin':
-        return "⛔ Access denied."
-
-    logs = []
-    if os.path.exists("downloads.json"):
-        with open("downloads.json", "r") as f:
-            logs = json.load(f)
-
-    users = []
-    if os.path.exists("users.json"):
-        with open("users.json", "r") as f:
-            users = list(json.load(f).keys())
-
-    all_files = []
-    if os.path.exists("user_files.json"):
-        with open("user_files.json", "r") as f:
-            all_files_data = json.load(f)
-            for user, files in all_files_data.items():
-                for filename, token in files.items():
-                    all_files.append({"user": user, "file": filename, "token": token})
-
-    file_html = ""
-    for f in all_files:
-        file_html += f"""
-        <li>
-            <b>{f['file']}</b> (by <i>{f['user']}</i>) — Token: <code>{f['token']}</code><br>
-            <a href="/download?filename={f['file']}&token={f['token']}">🔽 Download</a> |
-            <form action="/delete" method="POST" style="display:inline;">
-                <input type="hidden" name="filename" value="{f['file']}">
-                <input type="submit" value="🗑 Delete">
-            </form>
-        </li>
-        """
-
-    user_html = "".join([f"<li>👤 <a href='#'>{u}</a></li>" for u in users])
-    log_html = "".join([
-        f"<li>📄 <b>{l['filename']}</b> downloaded by <i>{l['user']}</i> at {l['timestamp']}</li>"
-        for l in logs
-    ])
-
-    return f"""
-    <h2>⚙️ Admin Dashboard</h2>
-    <h3>📁 All Uploaded Files</h3><ul>{file_html}</ul>
-    <h3>👥 Registered Users</h3><ul>{user_html}</ul>
-    <h3>📊 Download Logs</h3><ul>{log_html}</ul>
-    <br><a href='/'>🏠 Back to Home</a>
-    """
-
-
-# Keep all your existing routes unchanged here...
-
-
 @app.route('/')
 def home():
     return render_template_string(html)
@@ -153,35 +122,31 @@ def home():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        uname = request.form['username']
-        pwd = request.form['password']
-        if register_user(uname, pwd):
-            return redirect('/login')
-        else:
-            return "❌ Username already exists. <a href='/register'>Try again</a>"
-    return '''<h2>Register</h2>
-    <form method="POST">
-        Username: <input name="username"><br>
-        Password: <input type="password" name="password"><br>
-        <input type="submit" value="Register">
-    </form>'''
+        username = request.form['username']
+        password = request.form['password']
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE username = ?", (username,))
+            if c.fetchone():
+                return "Username already exists."
+            c.execute("INSERT INTO users VALUES (?, ?)", (username, password))
+            conn.commit()
+        return redirect('/login')
+    return '''<h2>Register</h2><form method="POST"><input name="username"><input name="password" type="password"><input type="submit"></form>'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        uname = request.form['username']
-        pwd = request.form['password']
-        if validate_user(uname, pwd):
-            session['user'] = uname
-            return redirect('/')
-        else:
-            return "❌ Invalid login. <a href='/login'>Try again</a>"
-    return '''<h2>Login</h2>
-    <form method="POST">
-        Username: <input name="username"><br>
-        Password: <input type="password" name="password"><br>
-        <input type="submit" value="Login">
-    </form>'''
+        username = request.form['username']
+        password = request.form['password']
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+            if c.fetchone():
+                session['user'] = username
+                return redirect('/')
+        return "❌ Invalid login. Try again"
+    return '''<h2>Login</h2><form method="POST"><input name="username"><input name="password" type="password"><input type="submit"></form>'''
 
 @app.route('/logout')
 def logout():
@@ -192,105 +157,87 @@ def logout():
 def upload():
     if 'user' not in session:
         return redirect('/login')
-
     file = request.files['file']
-    filename = file.filename
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     file.save(filepath)
-
     encrypt_file(filepath)
-
-    # Load user_files
-    user_files = {}
-    if os.path.exists("user_files.json"):
-        with open("user_files.json", "r") as f:
-            user_files = json.load(f)
-
-    username = session['user']
-    token = secrets.token_urlsafe(8)
-
-    if username not in user_files:
-        user_files[username] = {}
-    user_files[username][filename] = token
-
-    with open("user_files.json", "w") as f:
-        json.dump(user_files, f)
-
-    return f"✅ File '{filename}' uploaded and encrypted.<br><b>Your token:</b> {token}<br><a href='/'>Back to Home</a>"
+    token = secrets.token_urlsafe(12)
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (session['user'], file.filename, token))
+        conn.commit()
+    return f"✅ File uploaded and encrypted.<br>Your token is: <b>{token}</b><br><a href='/'>Back to Home</a>"
 
 @app.route('/download')
 def download():
+    filename = request.args.get('filename')
+    token = request.args.get('token')
     if 'user' not in session:
         return redirect('/login')
-
-    filename = request.args.get('filename')
-    token_input = request.args.get('token')
-
-    if not filename or not token_input:
-        return "❌ Missing filename or token."
-
-    # Load user_files.json
-    with open("user_files.json", "r") as f:
-        user_files = json.load(f)
-
-    # 🔍 Search through all users for this file + token
-    for user_data in user_files.values():
-        if filename in user_data and user_data[filename] == token_input:
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(filepath):
-                decrypt_file(filepath)
-                return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
-            else:
-                return "❌ Encrypted file missing."
-
-    return "❌ File not found or token is invalid."
-
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM files WHERE filename=? AND token=?", (filename, token))
+        if not c.fetchone():
+            return "⛔ File does not exist or invalid token."
+        decrypt_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session['user'], filename, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 @app.route('/delete', methods=['POST'])
 def delete():
     if 'user' not in session:
         return redirect('/login')
-
-    filename = request.form.get('filename')
+    filename = request.form['filename']
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM files WHERE username=? AND filename=?", (session['user'], filename))
+        conn.commit()
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-    with open("user_files.json", "r") as f:
-        user_files = json.load(f)
-
-    username = session['user']
-    if filename in user_files.get(username, {}):
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        del user_files[username][filename]
-        with open("user_files.json", "w") as f:
-            json.dump(user_files, f)
-        return f"🗑️ File '{filename}' deleted.<br><a href='/'>Back</a>"
-    else:
-        return "❌ File not found or not yours."
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    return f"🗑 File '{filename}' deleted.<br><a href='/'>Back to Home</a>"
 
 @app.route('/files')
 def list_files():
     if 'user' not in session:
         return redirect('/login')
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT filename, token FROM files WHERE username=?", (session['user'],))
+        files = c.fetchall()
+    if not files:
+        return "<h2>No uploaded files.</h2><a href='/'>Back to Home</a>"
+    output = "<ul>"
+    for f in files:
+        output += f"<li>{f[0]} — Token: <code>{f[1]}</code></li>"
+    output += "</ul><a href='/'>Back to Home</a>"
+    return output
 
-    with open("user_files.json", "r") as f:
-        user_files = json.load(f)
+@app.route('/admin')
+def admin():
+    if 'user' not in session or session['user'] != 'admin':
+        return "⛔ Access denied."
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM users")
+        users = c.fetchall()
+        c.execute("SELECT * FROM files")
+        files = c.fetchall()
+        c.execute("SELECT * FROM downloads")
+        logs = c.fetchall()
 
-    username = session['user']
-    user_data = user_files.get(username, {})
+    user_html = "".join([f"<li>{u[0]}</li>" for u in users])
+    file_html = "".join([f"<li>{f[1]} (by {f[0]}) — Token: {f[2]}</li>" for f in files])
+    log_html = "".join([f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>" for l in logs])
 
-    if not user_data:
-        return "<h2>No uploaded files.</h2><a href='/'>Back</a>"
-
-    file_links = ''
-    for f, token in user_data.items():
-        file_links += f"<li><b>{f}</b><br>🔑 Token: <code>{token}</code><br>" \
-                      f"<a href='/download?filename={f}'>Download</a> | " \
-                      f"<form action='/delete' method='POST' style='display:inline;'> " \
-                      f"<input type='hidden' name='filename' value='{f}'>" \
-                      f"<input type='submit' value='Delete'></form></li><br>"
-
-    return f"<h2>Your Uploaded Files</h2><ul>{file_links}</ul><br><a href='/'>Back</a>"
+    return f"""
+    <h2>⚙️ Admin Dashboard</h2>
+    <h3>👥 Users</h3><ul>{user_html}</ul>
+    <h3>📁 Files</h3><ul>{file_html}</ul>
+    <h3>📊 Download Logs</h3><ul>{log_html}</ul>
+    <a href='/'>Back to Home</a>
+    """
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
