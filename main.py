@@ -227,8 +227,22 @@ def admin():
         c.execute("SELECT * FROM downloads")
         logs = c.fetchall()
 
-    user_html = "".join([f"<li>{u[0]}</li>" for u in users])
-    file_html = "".join([f"<li>{f[1]} (by {f[0]}) — Token: {f[2]}</li>" for f in files])
+   user_html = "".join([
+    f"<li>{u[0]} "
+    f"<form action='/admin/delete_user' method='POST' style='display:inline;'>"
+    f"<input type='hidden' name='username' value='{u[0]}'>"
+    f"<input type='submit' value='🗑 Delete User'></form></li>"
+    for u in users
+])
+
+   file_html = "".join([
+    f"<li>{f[1]} (by {f[0]}) — Token: {f[2]} "
+    f"<form action='/admin/delete_file' method='POST' style='display:inline;'>"
+    f"<input type='hidden' name='filename' value='{f[1]}'>"
+    f"<input type='submit' value='🗑 Delete File'></form></li>"
+    for f in files
+])
+
     log_html = "".join([f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>" for l in logs])
 
     return f"""
@@ -238,6 +252,36 @@ def admin():
     <h3>📊 Download Logs</h3><ul>{log_html}</ul>
     <a href='/'>Back to Home</a>
     """
+
+@app.route('/admin/delete_user', methods=['POST'])
+def admin_delete_user():
+    if 'user' not in session or session['user'] != 'admin':
+        return "⛔ Access denied."
+    username = request.form['username']
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        # Delete user and their data
+        c.execute("DELETE FROM users WHERE username=?", (username,))
+        c.execute("DELETE FROM files WHERE username=?", (username,))
+        c.execute("DELETE FROM downloads WHERE username=?", (username,))
+        conn.commit()
+    return redirect('/admin')
+
+@app.route('/admin/delete_file', methods=['POST'])
+def admin_delete_file():
+    if 'user' not in session or session['user'] != 'admin':
+        return "⛔ Access denied."
+    filename = request.form['filename']
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM files WHERE filename=?", (filename,))
+        c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
+        conn.commit()
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    return redirect('/admin')
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
