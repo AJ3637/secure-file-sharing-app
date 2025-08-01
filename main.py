@@ -114,32 +114,46 @@ def upload():
     flash(f"✅ File uploaded! Token: {token} (valid 5 min)", "success")
     return redirect('/')
 
-@app.route('/download', methods=['GET', 'POST'])
+@app.route('/download', methods=['POST'])
 def download():
-    token = request.form.get('token') or request.args.get('token')
-    with sqlite3.connect("app.db") as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM files WHERE token=?", (token,))
-        file = c.fetchone()
-    if file:
-        expiry = datetime.fromisoformat(file[3])
-        if datetime.now() > expiry:
-            flash("⚠️ Token expired.", "warning")
-            return redirect('/')
-        path = os.path.join(UPLOAD_FOLDER, file[1])
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                decrypted = fernet.decrypt(f.read())
-            with open(path, 'wb') as f:
-                f.write(decrypted)
-            with sqlite3.connect("app.db") as conn:
-                c = conn.cursor()
-                c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get('user', 'guest'), file[1], datetime.now().isoformat()))
-                conn.commit()
-            return send_from_directory(UPLOAD_FOLDER, file[1], as_attachment=True)
-    flash("❌ Invalid or expired token.", "danger")
-    return redirect('/')
+    token = request.form.get('token')
+    return handle_token_download(token)
 
+@app.route('/download/<token>', methods=['GET'])
+def download_by_token(token):
+    return handle_token_download(token)
+
+def handle_token_download(token):
+    # Load token mapping from file or DB
+    with open('token_store.json', 'r') as f:
+        tokens = json.load(f)
+
+    if token not in tokens:
+        flash("❌ Invalid token.", "danger")
+        return redirect(url_for('home'))
+
+    file_info = tokens[token]
+    filename = file_info['filename']
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    if not os.path.exists(filepath):
+        flash("❌ File does not exist.", "danger")
+        return redirect(url_for('home'))
+
+    decrypt_file(filepath)
+
+    # Log download
+    log_entry = {
+        "user": session.get("user", "anonymous"),
+        "filename": filename,
+        "token": token,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    with open("download_logs.json", "a") as logf:
+        logf.write(json.dumps(log_entry) + "\n")
+
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    
 @app.route('/qr/<token>')
 def generate_qr(token):
     url = request.url_root.rstrip('/') + "/download?token=" + token
