@@ -1,224 +1,222 @@
-from flask import Flask, request, render_template_string, send_from_directory, session, redirect, url_for
+from flask import Flask, request, redirect, session, send_from_directory, render_template_string
 import os
-import secrets
 import sqlite3
+from cryptography.fernet import Fernet
 from datetime import datetime
-from encryption import generate_key, encrypt_file, decrypt_file
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
-UPLOAD_FOLDER = "files"
+UPLOAD_FOLDER = 'files'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-generate_key()
 
-# Initialize SQLite database
+# Generate encryption key if not exists
+if not os.path.exists("secret.key"):
+    with open("secret.key", "wb") as key_file:
+        key_file.write(Fernet.generate_key())
+
+with open("secret.key", "rb") as key_file:
+    key = key_file.read()
+
+fernet = Fernet(key)
+
+# DB Init
 def init_db():
-    conn = sqlite3.connect("app.db")
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            username TEXT,
-            filename TEXT,
-            token TEXT,
-            PRIMARY KEY (username, filename)
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS downloads (
-            username TEXT,
-            filename TEXT,
-            timestamp TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS files (username TEXT, filename TEXT, token TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS downloads (username TEXT, filename TEXT, timestamp TEXT)")
+        conn.commit()
 
 init_db()
 
-html = '''
+# Home HTML (Bootstrap)
+home_html = '''
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>Secure File Sharing</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #f0f4f8;
-            padding: 40px;
-            text-align: center;
-        }
-        h1 { color: #2d3748; }
-        form {
-            margin: 20px auto;
-            padding: 20px;
-            background: white;
-            width: 300px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        input[type="file"], input[type="text"], input[type="password"] {
-            width: 90%;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        input[type="submit"] {
-            background-color: #2b6cb0;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover { background-color: #2c5282; }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>🔐 Secure File Sharing App</h1>
-    {% if 'user' in session %}
-        <p>Welcome, {{ session['user'] }} | <a href="/logout">Logout</a></p>
-        {% if session['user'] == 'admin' %}
-            <p><a href="/admin">⚙️ Admin Dashboard</a></p>
-        {% else %}
-            <p><a href="/files">📁 View Uploaded Files</a></p>
-        {% endif %}
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">🔐 SecureShare</a>
+    <div class="d-flex">
+      {% if 'user' in session %}
+        <span class="navbar-text text-white me-3">Welcome, {{ session['user'] }}</span>
+        <a href="/logout" class="btn btn-outline-light">Logout</a>
+      {% else %}
+        <a href="/login" class="btn btn-outline-light me-2">Login</a>
+        <a href="/register" class="btn btn-outline-light">Register</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
 
-        <form method="POST" enctype="multipart/form-data" action="/upload">
-            <h3>Upload & Encrypt</h3>
-            <input type="file" name="file" required><br>
-            <input type="submit" value="Upload File">
-        </form>
+<div class="container mt-5">
+  {% if 'user' in session %}
+    <h2 class="mb-4">📁 Secure File Sharing</h2>
 
-        <form method="GET" action="/download">
-            <h3>Download & Decrypt</h3>
-            <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
-            <input type="text" name="token" placeholder="Enter access token" required><br>
-            <input type="submit" value="Download File">
-        </form>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card p-3 mb-3 shadow-sm">
+          <h5>Upload File</h5>
+          <form method="POST" enctype="multipart/form-data" action="/upload">
+              <input type="file" name="file" class="form-control my-2" required>
+              <button type="submit" class="btn btn-primary w-100">Upload & Encrypt</button>
+          </form>
+        </div>
+      </div>
 
-        <form method="POST" action="/delete">
-            <h3>Delete File</h3>
-            <input type="text" name="filename" placeholder="Enter filename.ext" required><br>
-            <input type="submit" value="Delete File">
-        </form>
-    {% else %}
-        <p><a href="/login">Login</a> or <a href="/register">Register</a> to use the app.</p>
+      <div class="col-md-6">
+        <div class="card p-3 mb-3 shadow-sm">
+          <h5>Download File</h5>
+          <form method="POST" action="/download">
+              <input type="text" name="token" class="form-control my-2" placeholder="Enter Token" required>
+              <button type="submit" class="btn btn-success w-100">Download & Decrypt</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-3 shadow-sm">
+      <h5>Uploaded Files (Your Account)</h5>
+      <ul class="list-group">
+        {% for f in files %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ f[1] }} — Token: <code>{{ f[2] }}</code>
+            <form method="POST" action="/delete_file" class="ms-2">
+              <input type="hidden" name="filename" value="{{ f[1] }}">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% if session['user'] == 'admin' %}
+    <div class="mt-4 text-end">
+      <a href="/admin" class="btn btn-dark">🛠 Admin Dashboard</a>
+    </div>
     {% endif %}
+
+  {% else %}
+    <div class="alert alert-info mt-5">🔐 Please <a href="/login">login</a> or <a href="/register">register</a> to use the app.</div>
+  {% endif %}
+</div>
 </body>
 </html>
 '''
 
 @app.route('/')
 def home():
-    return render_template_string(html)
+    if 'user' in session:
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM files WHERE username=?", (session['user'],))
+            files = c.fetchall()
+        return render_template_string(home_html, files=files)
+    return render_template_string(home_html)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        uname = request.form['username']
+        pwd = request.form['password']
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE username = ?", (username,))
-            if c.fetchone():
+            try:
+                c.execute("INSERT INTO users VALUES (?, ?)", (uname, pwd))
+                conn.commit()
+                return redirect('/login')
+            except:
                 return "Username already exists."
-            c.execute("INSERT INTO users VALUES (?, ?)", (username, password))
-            conn.commit()
-        return redirect('/login')
-    return '''<h2>Register</h2><form method="POST"><input name="username"><input name="password" type="password"><input type="submit"></form>'''
+    return '''<form method="POST">
+              Username: <input name="username"><br>Password: <input name="password"><br>
+              <input type="submit" value="Register"></form>'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        uname = request.form['username']
+        pwd = request.form['password']
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+            c.execute("SELECT * FROM users WHERE username=? AND password=?", (uname, pwd))
             if c.fetchone():
-                session['user'] = username
+                session['user'] = uname
                 return redirect('/')
-        return "❌ Invalid login. Try again"
-    return '''<h2>Login</h2><form method="POST"><input name="username"><input name="password" type="password"><input type="submit"></form>'''
+            return "❌ Invalid login. Try again"
+    return '''<form method="POST">
+              Username: <input name="username"><br>Password: <input name="password"><br>
+              <input type="submit" value="Login"></form>'''
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)
+    session.clear()
     return redirect('/')
 
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'user' not in session:
-        return redirect('/login')
+        return redirect('/')
     file = request.files['file']
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(filepath)
-    encrypt_file(filepath)
-    token = secrets.token_urlsafe(12)
+    filename = file.filename
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(path)
+    with open(path, 'rb') as f:
+        encrypted = fernet.encrypt(f.read())
+    with open(path, 'wb') as f:
+        f.write(encrypted)
+    token = Fernet.generate_key().decode()[:16]
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (session['user'], file.filename, token))
+        c.execute("INSERT INTO files VALUES (?, ?, ?)", (session['user'], filename, token))
         conn.commit()
-    return f"✅ File uploaded and encrypted.<br>Your token is: <b>{token}</b><br><a href='/'>Back to Home</a>"
+    return f"<div class='alert alert-success'>✅ File uploaded!<br>Token: <b>{token}</b><br><a href='/'>Back to Home</a></div>"
 
-@app.route('/download')
+@app.route('/download', methods=['POST'])
 def download():
-    filename = request.args.get('filename')
-    token = request.args.get('token')
-    if 'user' not in session:
-        return redirect('/login')
+    token = request.form['token']
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("SELECT * FROM files WHERE filename=? AND token=?", (filename, token))
-        if not c.fetchone():
-            return "⛔ File does not exist or invalid token."
-        decrypt_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session['user'], filename, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        conn.commit()
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+        c.execute("SELECT * FROM files WHERE token=?", (token,))
+        file = c.fetchone()
+    if file:
+        filepath = os.path.join(UPLOAD_FOLDER, file[1])
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                decrypted = fernet.decrypt(f.read())
+            with open(filepath, 'wb') as f:
+                f.write(decrypted)
+            with sqlite3.connect("app.db") as conn:
+                c = conn.cursor()
+                c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session['user'], file[1], datetime.now().isoformat()))
+                conn.commit()
+            return send_from_directory(UPLOAD_FOLDER, file[1], as_attachment=True)
+    return "<div class='alert alert-danger'>❌ Invalid token or file not found.<br><a href='/'>Back</a></div>"
 
-@app.route('/delete', methods=['POST'])
-def delete():
+@app.route('/delete_file', methods=['POST'])
+def delete_file():
     if 'user' not in session:
-        return redirect('/login')
+        return redirect('/')
     filename = request.form['filename']
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("DELETE FROM files WHERE username=? AND filename=?", (session['user'], filename))
+        c.execute("DELETE FROM files WHERE filename=? AND username=?", (filename, session['user']))
         conn.commit()
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
     if os.path.exists(filepath):
         os.remove(filepath)
-    return f"🗑 File '{filename}' deleted.<br><a href='/'>Back to Home</a>"
+    return redirect('/')
 
-@app.route('/files')
-def list_files():
-    if 'user' not in session:
-        return redirect('/login')
-    with sqlite3.connect("app.db") as conn:
-        c = conn.cursor()
-        c.execute("SELECT filename, token FROM files WHERE username=?", (session['user'],))
-        files = c.fetchall()
-    if not files:
-        return "<h2>No uploaded files.</h2><a href='/'>Back to Home</a>"
-    output = "<ul>"
-    for f in files:
-        output += f"<li>{f[0]} — Token: <code>{f[1]}</code></li>"
-    output += "</ul><a href='/'>Back to Home</a>"
-    return output
-
+# Admin dashboard and controls
 @app.route('/admin')
 def admin():
-    if 'user' not in session or session['user'] != 'admin':
+    if session.get('user') != 'admin':
         return "⛔ Access denied."
-
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("SELECT * FROM users")
@@ -227,66 +225,44 @@ def admin():
         files = c.fetchall()
         c.execute("SELECT * FROM downloads")
         logs = c.fetchall()
-
-    user_html = "".join([
-        f"<li>{u[0]} "
-        f"<form action='/admin/delete_user' method='POST' style='display:inline;'>"
-        f"<input type='hidden' name='username' value='{u[0]}'>"
-        f"<input type='submit' value='🗑 Delete User'></form></li>"
-        for u in users
-    ])
-
-    file_html = "".join([
-        f"<li>{f[1]} (by {f[0]}) — Token: {f[2]} "
-        f"<form action='/admin/delete_file' method='POST' style='display:inline;'>"
-        f"<input type='hidden' name='filename' value='{f[1]}'>"
-        f"<input type='submit' value='🗑 Delete File'></form></li>"
-        for f in files
-    ])
-
-    log_html = "".join([
-        f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>"
-        for l in logs
-    ])
-
     return f"""
-    <h2>⚙️ Admin Dashboard</h2>
-    <h3>👥 Users</h3><ul>{user_html}</ul>
-    <h3>📁 Files</h3><ul>{file_html}</ul>
-    <h3>📊 Download Logs</h3><ul>{log_html}</ul>
-    <a href='/'>Back to Home</a>
+    <h2>🛠 Admin Dashboard</h2>
+    <h4>👥 Registered Users</h4>
+    <ul>{''.join([f"<li>{u[0]} <form method='POST' action='/admin/delete_user' style='display:inline;'><input type='hidden' name='username' value='{u[0]}'><button>Delete</button></form></li>" for u in users])}</ul>
+    <h4>📁 All Uploaded Files</h4>
+    <ul>{''.join([f"<li>{f[1]} (by {f[0]}) — Token: {f[2]} <form method='POST' action='/admin/delete_file' style='display:inline;'><input type='hidden' name='filename' value='{f[1]}'><button>Delete</button></form></li>" for f in files])}</ul>
+    <h4>📊 Download Logs</h4>
+    <ul>{''.join([f"<li>{l[1]} downloaded by {l[0]} at {l[2]}</li>" for l in logs])}</ul>
+    <br><a href='/'>Back to Home</a>
     """
-
 
 @app.route('/admin/delete_user', methods=['POST'])
 def admin_delete_user():
-    if 'user' not in session or session['user'] != 'admin':
+    if session.get('user') != 'admin':
         return "⛔ Access denied."
-    username = request.form['username']
+    uname = request.form['username']
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        # Delete user and their data
-        c.execute("DELETE FROM users WHERE username=?", (username,))
-        c.execute("DELETE FROM files WHERE username=?", (username,))
-        c.execute("DELETE FROM downloads WHERE username=?", (username,))
+        c.execute("DELETE FROM users WHERE username=?", (uname,))
+        c.execute("DELETE FROM files WHERE username=?", (uname,))
+        c.execute("DELETE FROM downloads WHERE username=?", (uname,))
         conn.commit()
     return redirect('/admin')
 
 @app.route('/admin/delete_file', methods=['POST'])
 def admin_delete_file():
-    if 'user' not in session or session['user'] != 'admin':
+    if session.get('user') != 'admin':
         return "⛔ Access denied."
-    filename = request.form['filename']
+    fname = request.form['filename']
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("DELETE FROM files WHERE filename=?", (filename,))
-        c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
+        c.execute("DELETE FROM files WHERE filename=?", (fname,))
+        c.execute("DELETE FROM downloads WHERE filename=?", (fname,))
         conn.commit()
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    path = os.path.join(UPLOAD_FOLDER, fname)
+    if os.path.exists(path):
+        os.remove(path)
     return redirect('/admin')
-
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
