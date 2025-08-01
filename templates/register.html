@@ -1,0 +1,26 @@
+<!-- ======================= register.html ======================= -->
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5" style="max-width: 400px;">
+  <h3>📝 Register</h3>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, msg in messages %}
+        <div class="alert alert-{{ category }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  <form method="POST">
+    <div class="mb-3">
+      <label>Username</label>
+      <input type="text" name="username" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label>Password</label>
+      <input type="password" name="password" class="form-control" required>
+    </div>
+    <button class="btn btn-success">Register</button>
+    <a href="/login" class="btn btn-link">Login</a>
+  </form>
+</div>
+{% endblock %}
