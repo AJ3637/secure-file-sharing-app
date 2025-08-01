@@ -124,42 +124,44 @@ def download_by_token(token):
     return handle_token_download(token)
 
 def handle_token_download(token):
-    # Load token mapping from file or DB
-    with open('token_store.json', 'r') as f:
-        tokens = json.load(f)
+    try:
+        with open('tokens.json', 'r') as f:
+            tokens = json.load(f)
 
-    if token not in tokens:
-        flash("❌ Invalid token.", "danger")
-        return redirect(url_for('home'))
+        if token not in tokens:
+            flash("❌ Invalid token.", "danger")
+            return redirect(url_for('home'))
 
-    file_info = tokens[token]
-    filename = file_info['filename']
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file_info = tokens[token]
+        filename = file_info['filename']
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-    if not os.path.exists(filepath):
-        flash("❌ File does not exist.", "danger")
-        return redirect(url_for('home'))
+        if not os.path.exists(filepath):
+            flash("❌ File does not exist.", "danger")
+            return redirect(url_for('home'))
 
-    decrypt_file(filepath)
+        decrypt_file(filepath)
 
-    # Log download
-    log_entry = {
-        "user": session.get("user", "anonymous"),
-        "filename": filename,
-        "token": token,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    with open("download_logs.json", "a") as logf:
-        logf.write(json.dumps(log_entry) + "\n")
+        log_entry = {
+            "user": session.get("user", "anonymous"),
+            "filename": filename,
+            "token": token,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        with open("download_logs.json", "a") as logf:
+            logf.write(json.dumps(log_entry) + "\n")
 
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+
+    except Exception as e:
+        return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
     
 @app.route('/qr/<token>')
 def generate_qr(token):
-    url = request.url_root.rstrip('/') + "/download?token=" + token
-    qr = qrcode.make(url)
-    buf = BytesIO()
-    qr.save(buf, format='PNG')
+    qr_url = url_for('download_by_token', token=token, _external=True)
+    img = qrcode.make(qr_url)
+    buf = io.BytesIO()
+    img.save(buf)
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
