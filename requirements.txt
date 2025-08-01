@@ -2,4 +2,4 @@ flask
 werkzeug
 cryptography
 qrcode[pil]
-sqlite3
+
