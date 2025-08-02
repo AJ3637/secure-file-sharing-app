@@ -164,7 +164,7 @@ def upload():
         c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
         conn.commit()
 
-    flash(f"✅ File uploaded! Token: {token} (valid 5 min)", "success")
+    flash(f"✅ File uploaded! Token: {token} (valid 15 min)", "success")
     return redirect('/')
 
 # ================= TOKEN DOWNLOAD (POST + GET) =================
@@ -223,6 +223,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
