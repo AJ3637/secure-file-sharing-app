@@ -158,7 +158,7 @@ def upload():
         f.write(encrypted)
 
     token = Fernet.generate_key().decode()[:16]
-    expiry = (datetime.now() + timedelta(minutes=5)).isoformat()
+    expiry = (datetime.now() + timedelta(minutes=15)).isoformat()
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
@@ -223,6 +223,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
