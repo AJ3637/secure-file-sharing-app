@@ -147,33 +147,33 @@ def handle_token_download(token):
     try:
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT filename, username, expiry FROM files WHERE token=?", (token,))
+            c.execute("SELECT filename, username FROM files WHERE token=?", (token,))
             row = c.fetchone()
             if not row:
                 flash("❌ Invalid token.", "danger")
                 return redirect('/')
 
-            filename, owner, expiry = row
-            if datetime.fromisoformat(expiry) < datetime.now():
-                flash("⏰ Token expired.", "danger")
-                return redirect('/')
+            filename, owner = row
 
-            if not os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            if not os.path.exists(filepath):
                 flash("❌ File does not exist.", "danger")
                 return redirect('/')
 
-            # Decrypt and log
-            with open(os.path.join(UPLOAD_FOLDER, filename), 'rb') as f:
+            # Decrypt the file temporarily for download
+            with open(filepath, 'rb') as f:
                 decrypted = fernet.decrypt(f.read())
-            with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
+            with open(filepath, 'wb') as f:
                 f.write(decrypted)
 
+            # Log the download
             c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get("user", "guest"), filename, datetime.now().isoformat()))
             conn.commit()
 
             return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
+
 
 # ================= QR CODE GENERATOR =================
 @app.route('/qr/<token>')
@@ -189,5 +189,6 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
