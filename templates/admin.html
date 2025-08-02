@@ -1,48 +1,92 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <meta charset="UTF-8">
+    <title>Admin Dashboard | Secure File Sharing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f2f5;
+        }
+        .logo {
+            width: 50px;
+            margin-right: 10px;
+        }
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+    </style>
 </head>
-<body class="p-4 bg-light">
-    <div class="container">
-        <h2 class="mb-4">🔐 Admin Dashboard</h2>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary px-4">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
+            Secure File Sharing (Admin)
+        </a>
+        <div class="ms-auto">
+            <a href="/" class="btn btn-light me-2">🏠 Home</a>
+            <a href="/logout" class="btn btn-outline-light">Logout</a>
+        </div>
+    </nav>
 
-        <h4>👥 Registered Users</h4>
-        <ul class="list-group mb-4">
-            {% for user in users %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                {{ user }}
-                <form action="{{ url_for('delete_user', username=user) }}" method="post" style="margin:0;">
-                    <button class="btn btn-danger btn-sm">Delete User</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
+    <div class="container mt-4">
+        <div class="row g-4">
+            <!-- Users Card -->
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">👥 Registered Users</h5>
+                        <ul class="list-group list-group-flush">
+                            {% for user in users %}
+                                <li class="list-group-item">{{ user }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
 
-        <h4>📁 Uploaded Files</h4>
-        <ul class="list-group mb-4">
-            {% for username, filename, token in files %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                {{ filename }} <small>(by {{ username }}) - Token: {{ token }}</small>
-                <form action="{{ url_for('delete_file', username=username, filename=filename) }}" method="post" style="margin:0;">
-                    <button class="btn btn-warning btn-sm">Delete File</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
+            <!-- Uploaded Files Card -->
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">📁 Uploaded Files</h5>
+                        <ul class="list-group list-group-flush">
+                            {% for file in files %}
+                                <li class="list-group-item">
+                                    <strong>{{ file[1] }}</strong> <br>
+                                    by <em>{{ file[0] }}</em><br>
+                                    Token: <code>{{ file[2] }}</code>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
 
-        <h4>📊 Download Logs</h4>
-        <ul class="list-group">
-            {% for username, filename, timestamp in downloads %}
-            <li class="list-group-item">
-                {{ username }} downloaded <strong>{{ filename }}</strong> at <em>{{ timestamp }}</em>
-            </li>
-            {% endfor %}
-        </ul>
+            <!-- Download Logs Card -->
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">📊 Download Logs</h5>
+                        <ul class="list-group list-group-flush">
+                            {% for log in downloads %}
+                                <li class="list-group-item">
+                                    {{ log[0] }} downloaded <strong>{{ log[1] }}</strong><br>
+                                    <small class="text-muted">{{ log[2] }}</small>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <br>
-        <a href="/" class="btn btn-primary mt-4">⬅️ Back to Home</a>
+        <footer class="text-center mt-4 mb-2">
+            <small class="text-muted">© Secure File Sharing Platform</small>
+        </footer>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
