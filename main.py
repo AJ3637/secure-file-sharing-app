@@ -207,7 +207,11 @@ def handle_token_download(token):
 
             conn.commit()
 
-            return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+            response = send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+            response.headers["Location"] = url_for("download_success", filename=filename)
+            response.status_code = 302
+            return response
+
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
 
@@ -223,10 +227,21 @@ def generate_qr(token):
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
+# ================= DOWNLOAD SUCCESS =================
+@app.route('/download-success/<filename>')
+def download_success(filename):
+    return f"""
+    <h2>✅ Download Successful</h2>
+    <p>Your file <b>{filename}</b> has been downloaded.</p>
+    <a href="/">Return to Home</a>
+    """
+
+
 # ================= RUN APP =================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
