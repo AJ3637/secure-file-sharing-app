@@ -195,19 +195,24 @@ def handle_token_download(token):
                 flash("❌ File does not exist.", "danger")
                 return redirect('/')
 
-            # Decrypt the file temporarily for download
+            # Decrypt the file
             with open(filepath, 'rb') as f:
                 decrypted = fernet.decrypt(f.read())
             with open(filepath, 'wb') as f:
                 f.write(decrypted)
 
             # Log the download
-            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get("user", "guest"), filename, datetime.now().isoformat()))
+            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (
+                session.get("user", "guest"),
+                filename,
+                datetime.now().isoformat()
+            ))
             conn.commit()
 
             return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
+
 
 
 # ================= QR CODE GENERATOR =================
@@ -224,6 +229,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
