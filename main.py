@@ -202,11 +202,9 @@ def handle_token_download(token):
                 f.write(decrypted)
 
             # Log the download
-            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (
-                session.get("user", "guest"),
-                filename,
-                datetime.now().isoformat()
-            ))
+            username = session.get("user", "guest")
+            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (username, filename, datetime.now().isoformat()))
+
             conn.commit()
 
             return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
@@ -229,6 +227,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
