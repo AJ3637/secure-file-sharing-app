@@ -190,23 +190,21 @@ def handle_token_download(token):
 
             filename = row[0]
 
-            file_path = os.path.join(UPLOAD_FOLDER, filename)
-            if not os.path.exists(file_path):
-                flash("❌ File does not exist.", "danger")
-                return redirect('/')
+            # Decrypt in memory and send
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            with open(filepath, 'rb') as f:
+                encrypted_data = f.read()
 
-            # Decrypt temporarily to serve
-            with open(file_path, 'rb') as f:
-                decrypted = fernet.decrypt(f.read())
-            with open(file_path, 'wb') as f:
-                f.write(decrypted)
+            decrypted_data = fernet.decrypt(encrypted_data)
 
-            # Log download (even for non-logged-in users as 'guest')
+        # Log the download
             username = session.get("user", "guest")
             c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (username, filename, datetime.now().isoformat()))
             conn.commit()
 
-            return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+        # Send as downloadable file without altering stored file
+            return send_file(BytesIO(decrypted_data), download_name=filename, as_attachment=True)
+
 
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
@@ -238,6 +236,7 @@ def download_success(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
