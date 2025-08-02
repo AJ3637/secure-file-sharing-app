@@ -34,12 +34,13 @@ with sqlite3.connect("app.db") as conn:
 @app.route('/')
 def home():
     files = []
+    logo_url = url_for('static', filename='logo.png')
     if 'user' in session:
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
             c.execute("SELECT filename, token, expiry FROM files WHERE username=?", (session['user'],))
             files = c.fetchall()
-    return render_template("home.html", files=files, session=session)
+    return render_template("home.html", files=files, session=session, logo=logo_url)
 
 # ================= REGISTER =================
 @app.route('/register', methods=['GET', 'POST'])
@@ -223,6 +224,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
