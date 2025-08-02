@@ -58,6 +58,26 @@ def register():
                 flash("⚠️ Username already exists.", "warning")
     return render_template("register.html")
 
+# ================= ADMIN =================
+@app.route('/admin')
+def admin_dashboard():
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT username FROM users")
+        users = [row[0] for row in c.fetchall()]
+
+        c.execute("SELECT username, filename, token FROM files")
+        files = c.fetchall()
+
+        c.execute("SELECT username, filename, timestamp FROM downloads")
+        downloads = c.fetchall()
+
+    return render_template("admin.html", users=users, files=files, downloads=downloads)
+
+
 # ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -169,3 +189,4 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
