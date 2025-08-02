@@ -66,7 +66,7 @@ def admin_dashboard():
 
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("SELECT username FROM users")
+        c.execute("SELECT username FROM users WHERE username != 'admin'")
         users = [row[0] for row in c.fetchall()]
 
         c.execute("SELECT username, filename, token FROM files")
@@ -76,6 +76,40 @@ def admin_dashboard():
         downloads = c.fetchall()
 
     return render_template("admin.html", users=users, files=files, downloads=downloads)
+
+# ================= DELETE USER =================
+@app.route('/admin/delete_user/<username>', methods=['POST'])
+def delete_user(username):
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM users WHERE username=?", (username,))
+        c.execute("DELETE FROM files WHERE username=?", (username,))
+        c.execute("DELETE FROM downloads WHERE username=?", (username,))
+        c.execute("DELETE FROM logins WHERE username=?", (username,))
+        conn.commit()
+    flash(f"🗑️ Deleted user: {username}", "info")
+    return redirect('/admin')
+
+# ================= DELETE FILE =================
+@app.route('/admin/delete_file/<username>/<filename>', methods=['POST'])
+def delete_file(username, filename):
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM files WHERE username=? AND filename=?", (username, filename))
+        c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
+        conn.commit()
+    flash(f"🗑️ Deleted file: {filename} by {username}", "info")
+    return redirect('/admin')
 
 
 # ================= LOGIN =================
@@ -189,6 +223,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
