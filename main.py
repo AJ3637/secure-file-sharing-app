@@ -1,3 +1,5 @@
+# main.py — Fully Updated (No Token Expiry, Cross-User Download)
+
 from flask import Flask, request, redirect, session, send_from_directory, render_template, send_file, flash, url_for
 import os, sqlite3, qrcode, json
 from cryptography.fernet import Fernet
@@ -13,7 +15,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ================= ENCRYPTION KEY ====================
+# Generate encryption key if not exists
 if not os.path.exists("secret.key"):
     with open("secret.key", "wb") as key_file:
         key_file.write(Fernet.generate_key())
@@ -21,27 +23,25 @@ with open("secret.key", "rb") as key_file:
     key = key_file.read()
 fernet = Fernet(key)
 
-# ================= DB INITIALIZATION =================
+# DB Init
 with sqlite3.connect("app.db") as conn:
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)")
-    c.execute("CREATE TABLE IF NOT EXISTS files (username TEXT, filename TEXT, token TEXT, expiry TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS files (username TEXT, filename TEXT, token TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS downloads (username TEXT, filename TEXT, timestamp TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS logins (username TEXT, status TEXT, timestamp TEXT)")
     conn.commit()
 
-# ================= HOME PAGE =================
 @app.route('/')
 def home():
     files = []
     if 'user' in session:
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT filename, token, expiry FROM files WHERE username=?", (session['user'],))
+            c.execute("SELECT filename, token FROM files WHERE username=?", (session['user'],))
             files = c.fetchall()
     return render_template("home.html", files=files, session=session)
 
-# ================= REGISTER =================
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -58,27 +58,6 @@ def register():
                 flash("⚠️ Username already exists.", "warning")
     return render_template("register.html")
 
-# ================= ADMIN =================
-@app.route('/admin')
-def admin_dashboard():
-    if session.get("user") != "admin":
-        return redirect('/')
-
-    with sqlite3.connect("app.db") as conn:
-        c = conn.cursor()
-        c.execute("SELECT username FROM users")
-        users = [row[0] for row in c.fetchall()]
-
-        c.execute("SELECT username, filename, token FROM files")
-        files = c.fetchall()
-
-        c.execute("SELECT username, filename, timestamp FROM downloads")
-        downloads = c.fetchall()
-
-    return render_template("admin.html", users=users, files=files, downloads=downloads)
-
-
-# ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -98,14 +77,12 @@ def login():
                 flash("❌ Invalid login credentials.", "danger")
     return render_template("login.html")
 
-# ================= LOGOUT =================
 @app.route('/logout')
 def logout():
     session.clear()
     flash("✅ Logged out successfully.", "info")
     return redirect('/')
 
-# ================= FILE UPLOAD =================
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'user' not in session:
@@ -117,23 +94,18 @@ def upload():
         return redirect('/')
     path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(path)
-
     with open(path, 'rb') as f:
         encrypted = fernet.encrypt(f.read())
     with open(path, 'wb') as f:
         f.write(encrypted)
-
     token = Fernet.generate_key().decode()[:16]
-    expiry = (datetime.now() + timedelta(minutes=5)).isoformat()
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
+        c.execute("INSERT INTO files (username, filename, token) VALUES (?, ?, ?)", (session['user'], filename, token))
         conn.commit()
-
-    flash(f"✅ File uploaded! Token: {token} (valid 5 min)", "success")
+    flash(f"✅ File uploaded! Token: {token} (No expiry)", "success")
     return redirect('/')
 
-# ================= TOKEN DOWNLOAD (POST + GET) =================
 @app.route('/download', methods=['POST'])
 def download():
     token = request.form.get('token')
@@ -147,35 +119,28 @@ def handle_token_download(token):
     try:
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT filename, username, expiry FROM files WHERE token=?", (token,))
-            row = c.fetchone()
-            if not row:
+            c.execute("SELECT filename FROM files WHERE token=?", (token,))
+            result = c.fetchone()
+            if not result:
                 flash("❌ Invalid token.", "danger")
-                return redirect('/')
-
-            filename, owner, expiry = row
-            if datetime.fromisoformat(expiry) < datetime.now():
-                flash("⏰ Token expired.", "danger")
-                return redirect('/')
-
-            if not os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
-                flash("❌ File does not exist.", "danger")
-                return redirect('/')
-
-            # Decrypt and log
-            with open(os.path.join(UPLOAD_FOLDER, filename), 'rb') as f:
-                decrypted = fernet.decrypt(f.read())
-            with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
-                f.write(decrypted)
-
-            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get("user", "guest"), filename, datetime.now().isoformat()))
+                return redirect(url_for('home'))
+            filename = result[0]
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(filepath):
+            flash("❌ File does not exist.", "danger")
+            return redirect(url_for('home'))
+        with open(filepath, 'rb') as f:
+            decrypted = fernet.decrypt(f.read())
+        with open(filepath, 'wb') as f:
+            f.write(decrypted)
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (session.get("user", "anonymous"), filename, datetime.utcnow().isoformat()))
             conn.commit()
-
-            return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
 
-# ================= QR CODE GENERATOR =================
 @app.route('/qr/<token>')
 def generate_qr(token):
     qr_url = url_for('download_by_token', token=token, _external=True)
@@ -185,8 +150,20 @@ def generate_qr(token):
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
-# ================= RUN APP =================
+@app.route('/admin')
+def admin_dashboard():
+    if session.get("user") != "admin":
+        return redirect('/')
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT username FROM users")
+        users = [row[0] for row in c.fetchall()]
+        c.execute("SELECT username, filename, token FROM files")
+        files = c.fetchall()
+        c.execute("SELECT username, filename, timestamp FROM downloads")
+        downloads = c.fetchall()
+    return render_template("admin.html", users=users, files=files, downloads=downloads)
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
