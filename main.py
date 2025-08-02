@@ -182,38 +182,35 @@ def handle_token_download(token):
     try:
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT filename, username FROM files WHERE token=?", (token,))
+            c.execute("SELECT filename FROM files WHERE token=?", (token,))
             row = c.fetchone()
             if not row:
                 flash("❌ Invalid token.", "danger")
                 return redirect('/')
 
-            filename, owner = row
+            filename = row[0]
 
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            if not os.path.exists(filepath):
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            if not os.path.exists(file_path):
                 flash("❌ File does not exist.", "danger")
                 return redirect('/')
 
-            # Decrypt the file
-            with open(filepath, 'rb') as f:
+            # Decrypt temporarily to serve
+            with open(file_path, 'rb') as f:
                 decrypted = fernet.decrypt(f.read())
-            with open(filepath, 'wb') as f:
+            with open(file_path, 'wb') as f:
                 f.write(decrypted)
 
-            # Log the download
+            # Log download (even for non-logged-in users as 'guest')
             username = session.get("user", "guest")
             c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (username, filename, datetime.now().isoformat()))
-
             conn.commit()
 
-            response = send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
-            response.headers["Location"] = url_for("download_success", filename=filename)
-            response.status_code = 302
-            return response
+            return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
+
 
 
 
@@ -241,6 +238,7 @@ def download_success(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
