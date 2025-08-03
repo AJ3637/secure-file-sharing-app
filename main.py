@@ -36,35 +36,17 @@ def home():
     user = session.get('user')
 
     if not user:
-        # Guest view: show welcome page with login/register options
         return render_template("home.html", files=[], session={})
 
-    if user == 'admin':
-        # Admin view: show admin dashboard
-        with sqlite3.connect("app.db") as conn:
-            c = conn.cursor()
-            c.execute("SELECT username FROM users")
-            users = [row[0] for row in c.fetchall()]
-
-            c.execute("SELECT username, filename, token FROM files")
-            files = c.fetchall()
-
-            c.execute("SELECT username, filename, timestamp FROM downloads")
-            downloads = c.fetchall()
-
-        return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
-
-    else:
-        # Regular user view
+    if user != 'admin':
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
             c.execute("SELECT filename, token FROM files WHERE username=?", (user,))
             files = c.fetchall()
-
         return render_template("home.html", files=files, session=session)
 
-
-
+    else:
+        return render_template("home.html", files=[], session=session)
 
 # ================= REGISTER =================
 @app.route('/register', methods=['GET', 'POST'])
@@ -91,7 +73,7 @@ def admin_dashboard():
 
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("SELECT username FROM users WHERE username != 'admin'")
+        c.execute("SELECT username FROM users")
         users = [row[0] for row in c.fetchall()]
 
         c.execute("SELECT username, filename, token FROM files")
@@ -136,7 +118,6 @@ def delete_file(username, filename):
     flash(f"🗑️ Deleted file: {filename} by {username}", "info")
     return redirect('/admin')
 
-
 # ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -169,36 +150,39 @@ def logout():
 def upload():
     if 'user' not in session:
         return redirect('/')
-    file = request.files['file']
-    filename = file.filename
-    if not filename:
+
+    file = request.files.get('file')
+    if not file or file.filename == '':
         flash("⚠️ Invalid file.", "warning")
         return redirect('/')
-    path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(path)
 
-    with open(path, 'rb') as f:
+    filename = file.filename
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+
+    with open(filepath, 'rb') as f:
         encrypted = fernet.encrypt(f.read())
-    with open(path, 'wb') as f:
+    with open(filepath, 'wb') as f:
         f.write(encrypted)
 
     token = Fernet.generate_key().decode()[:16]
     expiry = None
+
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
         conn.commit()
 
-    flash(f"✅ File uploaded! Token: {token} ", "success")
+    flash(f"✅ File uploaded! Token: {token}", "success")
     return redirect('/')
 
-# ================= TOKEN DOWNLOAD (POST + GET) =================
+# ================= TOKEN DOWNLOAD =================
 @app.route('/download', methods=['POST'])
 def download():
     token = request.form.get('token')
     return handle_token_download(token)
 
-@app.route('/download/<token>', methods=['GET'])
+@app.route('/download/<token>')
 def download_by_token(token):
     return handle_token_download(token)
 
@@ -213,30 +197,21 @@ def handle_token_download(token):
                 return redirect('/')
 
             filename = row[0]
-
-            # Decrypt in memory and send
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             with open(filepath, 'rb') as f:
                 encrypted_data = f.read()
-
             decrypted_data = fernet.decrypt(encrypted_data)
 
-        # Log the download
             username = session.get("user", "guest")
             c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (username, filename, datetime.now().isoformat()))
             conn.commit()
 
-        # Send as downloadable file without altering stored file
-            return send_file(BytesIO(decrypted_data), download_name=filename, as_attachment=True)
-
+        return send_file(BytesIO(decrypted_data), download_name=filename, as_attachment=True)
 
     except Exception as e:
         return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
 
-
-
-
-# ================= QR CODE GENERATOR =================
+# ================= QR CODE =================
 @app.route('/qr/<token>')
 def generate_qr(token):
     qr_url = url_for('download_by_token', token=token, _external=True)
@@ -246,33 +221,7 @@ def generate_qr(token):
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
-# ================= DOWNLOAD SUCCESS =================
-@app.route('/download-success/<filename>')
-def download_success(filename):
-    return f"""
-    <h2>✅ Download Successful</h2>
-    <p>Your file <b>{filename}</b> has been downloaded.</p>
-    <a href="/">Return to Home</a>
-    """
-
-
-# ================= RUN APP =================
+# =================== RUN ====================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    app.run(host='0.0.0.0', port=port, debug=True)
