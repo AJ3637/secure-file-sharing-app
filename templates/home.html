@@ -1,130 +1,51 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Secure File Sharing App</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
   body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(to bottom right, #4CBB17, #FFFF00, #0000FF);
     min-height: 100vh;
-    background: linear-gradient(135deg, #4CBB17, #FFFF00, #0000FF);
-    background-size: 400% 400%;
-    animation: gradientShift 10s ease infinite;
+    display: flex;
+    flex-direction: column;
   }
 
-  @keyframes gradientShift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+  .main-content {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
-  .card {
-    background: white;
-    padding: 2rem;
-    border-radius: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  }
-
-  .center-box {
-    max-width: 600px;
-    margin: 100px auto;
+  .welcome-box {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     text-align: center;
+    max-width: 600px;
+    width: 100%;
+  }
+
+  .welcome-box h1 {
+    font-weight: bold;
+    font-size: 2rem;
+  }
+
+  .welcome-box p {
+    font-size: 1.1rem;
+  }
+
+  .logo-large {
+    max-width: 180px;
+    margin-bottom: 20px;
   }
 </style>
 
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo">
-            </a>
-            <div class="d-flex">
-                {% if session.get('user') %}
-                    <span class="navbar-text me-3">👤 {{ session['user'] }}</span>
-                    <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
-                {% else %}
-                    <a href="/login" class="btn btn-outline-primary btn-sm me-2">Login</a>
-                    <a href="/register" class="btn btn-primary btn-sm">Register</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        {% if session.get('user') %}
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card p-4 mb-4">
-                    <h5>📤 Upload File</h5>
-                    <form method="POST" action="/upload" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <input type="file" name="file" class="form-control" required>
-                        </div>
-                        <button type="submit" class="btn btn-success">Upload</button>
-                    </form>
-                </div>
-
-                <div class="card p-4 mb-4">
-                    <h5>🔽 Download File</h5>
-                    <form method="POST" action="/download">
-                        <div class="mb-3">
-                            <input type="text" name="token" class="form-control" placeholder="Enter token" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Download</button>
-                    </form>
-                </div>
-
-                {% if session['user'] == 'admin' %}
-                <div class="card p-4">
-                    <h5>⚙️ Admin Panel</h5>
-                    <a href="/admin" class="btn btn-dark btn-sm mt-2">Go to Admin Dashboard</a>
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="col-md-6">
-                <div class="card p-4">
-                    <h5>📁 Your Uploaded Files</h5>
-                    {% if files %}
-                        <ul class="list-group list-group-flush">
-                        {% for f in files %}
-                            <li class="list-group-item">
-                                <strong>{{ f[0] }}</strong><br>
-                                <span class="token">🔑 Token: {{ f[1] }}</span><br>
-                                <a href="/qr/{{ f[1] }}" class="btn btn-outline-secondary btn-sm mt-1">📷 QR</a>
-                            </li>
-                        {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted">No files uploaded yet.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <div class="text-center">
-            <h2>🔒 Welcome to Secure File Sharing App</h2>
-            <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
-        </div>
-        {% endif %}
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-
+<div class="main-content">
+  <div class="welcome-box">
+    <img src="https://img.icons8.com/fluency/96/lock.png" alt="Logo" class="logo-large">
+    <h1>🔐 Welcome to Secure File Sharing App</h1>
+    <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
+  </div>
+</div>
+{% endblock %}
