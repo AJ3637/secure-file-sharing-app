@@ -157,6 +157,37 @@ def login():
                 flash("❌ Invalid login credentials.", "danger")
     return render_template("login.html")
 
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        username = request.form['username']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+
+        if new_password != confirm_password:
+            flash("⚠️ Passwords do not match.", "warning")
+            return redirect('/reset_password')
+
+        hashed = generate_password_hash(new_password)
+
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE username=?", (username,))
+            user = c.fetchone()
+            if not user:
+                flash("❌ User not found.", "danger")
+                return redirect('/reset_password')
+
+            c.execute("UPDATE users SET password=? WHERE username=?", (hashed, username))
+            conn.commit()
+
+        flash("✅ Password updated successfully. Please login.", "success")
+        return redirect('/login')
+
+    return render_template("reset_password.html")
+
+
 # ================= LOGOUT =================
 @app.route('/logout')
 def logout():
@@ -280,6 +311,7 @@ def forgot_password():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
