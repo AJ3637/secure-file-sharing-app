@@ -1,5 +1,5 @@
-from flask import Flask, request, redirect, session, send_file, render_template, flash, url_for
-import os, sqlite3, qrcode
+from flask import Flask, request, redirect, session, send_from_directory, render_template, send_file, flash, url_for
+import os, sqlite3, qrcode, json
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,20 +8,20 @@ from io import BytesIO
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 app.permanent_session_lifetime = timedelta(minutes=30)
-
 UPLOAD_FOLDER = 'files'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ================= ENCRYPTION KEY =================
+# ================= ENCRYPTION KEY ====================
 if not os.path.exists("secret.key"):
-    with open("secret.key", "wb") as f:
-        f.write(Fernet.generate_key())
-with open("secret.key", "rb") as f:
-    key = f.read()
+    with open("secret.key", "wb") as key_file:
+        key_file.write(Fernet.generate_key())
+with open("secret.key", "rb") as key_file:
+    key = key_file.read()
 fernet = Fernet(key)
 
-# ================= DB INIT =================
+# ================= DB INITIALIZATION =================
 with sqlite3.connect("app.db") as conn:
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)")
@@ -30,18 +30,20 @@ with sqlite3.connect("app.db") as conn:
     c.execute("CREATE TABLE IF NOT EXISTS logins (username TEXT, status TEXT, timestamp TEXT)")
     conn.commit()
 
-# ================= HOME =================
+# ================= HOME PAGE =================
 @app.route('/')
 def home():
     user = session.get('user')
 
     if not user:
+        # Guest view: show welcome page with login/register options
         return render_template("home.html", files=[], session={})
 
     if user == 'admin':
+        # Admin view: show admin dashboard
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT username FROM users WHERE username != 'admin'")
+            c.execute("SELECT username FROM users")
             users = [row[0] for row in c.fetchall()]
 
             c.execute("SELECT username, filename, token FROM files")
@@ -53,11 +55,16 @@ def home():
         return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
 
     else:
+        # Regular user view
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
             c.execute("SELECT filename, token FROM files WHERE username=?", (user,))
             files = c.fetchall()
+
         return render_template("home.html", files=files, session=session)
+
+
+
 
 # ================= REGISTER =================
 @app.route('/register', methods=['GET', 'POST'])
@@ -76,6 +83,60 @@ def register():
                 flash("⚠️ Username already exists.", "warning")
     return render_template("register.html")
 
+# ================= ADMIN =================
+@app.route('/admin')
+def admin_dashboard():
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT username FROM users WHERE username != 'admin'")
+        users = [row[0] for row in c.fetchall()]
+
+        c.execute("SELECT username, filename, token FROM files")
+        files = c.fetchall()
+
+        c.execute("SELECT username, filename, timestamp FROM downloads")
+        downloads = c.fetchall()
+
+    return render_template("admin.html", users=users, files=files, downloads=downloads)
+
+# ================= DELETE USER =================
+@app.route('/admin/delete_user/<username>', methods=['POST'])
+def delete_user(username):
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM users WHERE username=?", (username,))
+        c.execute("DELETE FROM files WHERE username=?", (username,))
+        c.execute("DELETE FROM downloads WHERE username=?", (username,))
+        c.execute("DELETE FROM logins WHERE username=?", (username,))
+        conn.commit()
+    flash(f"🗑️ Deleted user: {username}", "info")
+    return redirect('/admin')
+
+# ================= DELETE FILE =================
+@app.route('/admin/delete_file/<username>/<filename>', methods=['POST'])
+def delete_file(username, filename):
+    if session.get("user") != "admin":
+        return redirect('/')
+
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+
+    with sqlite3.connect("app.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM files WHERE username=? AND filename=?", (username, filename))
+        c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
+        conn.commit()
+    flash(f"🗑️ Deleted file: {filename} by {username}", "info")
+    return redirect('/admin')
+
+
 # ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -93,37 +154,14 @@ def login():
                 return redirect('/')
             else:
                 c.execute("INSERT INTO logins VALUES (?, ?, ?)", (uname, 'fail', datetime.now().isoformat()))
-                flash("❌ Invalid credentials", "danger")
+                flash("❌ Invalid login credentials.", "danger")
     return render_template("login.html")
-
-# ================= RESET PASSWORD =================
-@app.route('/reset_password', methods=['GET', 'POST'])
-def reset_password():
-    if request.method == 'POST':
-        username = request.form['username']
-        new_password = request.form['new_password']
-        confirm_password = request.form['confirm_password']
-        if new_password != confirm_password:
-            flash("⚠️ Passwords do not match.", "warning")
-            return redirect('/reset_password')
-        with sqlite3.connect("app.db") as conn:
-            c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE username=?", (username,))
-            if not c.fetchone():
-                flash("❌ User not found.", "danger")
-                return redirect('/reset_password')
-            hashed = generate_password_hash(new_password)
-            c.execute("UPDATE users SET password=? WHERE username=?", (hashed, username))
-            conn.commit()
-            flash("✅ Password updated. Please login.", "success")
-            return redirect('/login')
-    return render_template("reset_password.html")
 
 # ================= LOGOUT =================
 @app.route('/logout')
 def logout():
     session.clear()
-    flash("✅ Logged out.", "info")
+    flash("✅ Logged out successfully.", "info")
     return redirect('/')
 
 # ================= FILE UPLOAD =================
@@ -131,11 +169,11 @@ def logout():
 def upload():
     if 'user' not in session:
         return redirect('/')
-    file = request.files.get('file')
-    if not file or file.filename == '':
+    file = request.files['file']
+    filename = file.filename
+    if not filename:
         flash("⚠️ Invalid file.", "warning")
         return redirect('/')
-    filename = file.filename
     path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(path)
 
@@ -151,16 +189,16 @@ def upload():
         c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
         conn.commit()
 
-    flash(f"✅ File uploaded! Token: {token}", "success")
+    flash(f"✅ File uploaded! Token: {token} ", "success")
     return redirect('/')
 
-# ================= TOKEN DOWNLOAD =================
+# ================= TOKEN DOWNLOAD (POST + GET) =================
 @app.route('/download', methods=['POST'])
 def download():
     token = request.form.get('token')
     return handle_token_download(token)
 
-@app.route('/download/<token>')
+@app.route('/download/<token>', methods=['GET'])
 def download_by_token(token):
     return handle_token_download(token)
 
@@ -171,20 +209,34 @@ def handle_token_download(token):
             c.execute("SELECT filename FROM files WHERE token=?", (token,))
             row = c.fetchone()
             if not row:
-                flash("❌ Invalid token", "danger")
+                flash("❌ Invalid token.", "danger")
                 return redirect('/')
+
             filename = row[0]
+
+            # Decrypt in memory and send
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             with open(filepath, 'rb') as f:
-                decrypted_data = fernet.decrypt(f.read())
+                encrypted_data = f.read()
+
+            decrypted_data = fernet.decrypt(encrypted_data)
+
+        # Log the download
             username = session.get("user", "guest")
             c.execute("INSERT INTO downloads VALUES (?, ?, ?)", (username, filename, datetime.now().isoformat()))
             conn.commit()
-            return send_file(BytesIO(decrypted_data), download_name=filename, as_attachment=True)
-    except Exception as e:
-        return f"<h3>❌ Internal Server Error</h3><pre>{str(e)}</pre>"
 
-# ================= QR CODE =================
+        # Send as downloadable file without altering stored file
+            return send_file(BytesIO(decrypted_data), download_name=filename, as_attachment=True)
+
+
+    except Exception as e:
+        return f"<h3>❌ Internal Server Error:</h3><pre>{str(e)}</pre>"
+
+
+
+
+# ================= QR CODE GENERATOR =================
 @app.route('/qr/<token>')
 def generate_qr(token):
     qr_url = url_for('download_by_token', token=token, _external=True)
@@ -194,40 +246,33 @@ def generate_qr(token):
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
-# ================= ADMIN DELETE USER =================
-@app.route('/admin/delete_user/<username>', methods=['POST'])
-def delete_user(username):
-    if session.get("user") != "admin":
-        return redirect('/')
-    with sqlite3.connect("app.db") as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM users WHERE username=?", (username,))
-        c.execute("DELETE FROM files WHERE username=?", (username,))
-        c.execute("DELETE FROM downloads WHERE username=?", (username,))
-        c.execute("DELETE FROM logins WHERE username=?", (username,))
-        conn.commit()
-    flash(f"🗑️ Deleted user: {username}", "info")
-    return redirect('/admin')
+# ================= DOWNLOAD SUCCESS =================
+@app.route('/download-success/<filename>')
+def download_success(filename):
+    return f"""
+    <h2>✅ Download Successful</h2>
+    <p>Your file <b>{filename}</b> has been downloaded.</p>
+    <a href="/">Return to Home</a>
+    """
 
-# ================= ADMIN DELETE FILE =================
-@app.route('/admin/delete_file/<username>/<filename>', methods=['POST'])
-def delete_file(username, filename):
-    if session.get("user") != "admin":
-        return redirect('/')
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-    with sqlite3.connect("app.db") as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM files WHERE username=? AND filename=?", (username, filename))
-        c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
-        conn.commit()
-    flash(f"🗑️ Deleted file: {filename}", "info")
-    return redirect('/admin')
 
-# ================= RUN =================
+# ================= RUN APP =================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
