@@ -33,13 +33,14 @@ with sqlite3.connect("app.db") as conn:
 # ================= HOME PAGE =================
 @app.route('/')
 def home():
-    if 'user' not in session:
-        # Not logged in: show welcome page with login/register
+    user = session.get('user')
+
+    if not user:
+        # Guest view: show welcome page with login/register options
         return render_template("home.html", files=[], session={})
 
-    username = session['user']
-    if username == 'admin':
-        # Admin dashboard
+    if user == 'admin':
+        # Admin view: show admin dashboard
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
             c.execute("SELECT username FROM users")
@@ -52,13 +53,16 @@ def home():
             downloads = c.fetchall()
 
         return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
+
     else:
-        # Normal user dashboard
+        # Regular user view
         with sqlite3.connect("app.db") as conn:
             c = conn.cursor()
-            c.execute("SELECT filename, token FROM files WHERE username=?", (username,))
+            c.execute("SELECT filename, token FROM files WHERE username=?", (user,))
             files = c.fetchall()
+
         return render_template("home.html", files=files, session=session)
+
 
 
 
@@ -256,6 +260,7 @@ def download_success(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
