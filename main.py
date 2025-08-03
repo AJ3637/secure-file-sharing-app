@@ -255,11 +255,32 @@ def download_success(filename):
     <a href="/">Return to Home</a>
     """
 
+# ================= PASSWORD RESET =================
+@app.route('/forgot', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        username = request.form['username']
+        new_password = request.form['new_password']
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE username=?", (username,))
+            if c.fetchone():
+                hashed_pwd = generate_password_hash(new_password)
+                c.execute("UPDATE users SET password=? WHERE username=?", (hashed_pwd, username))
+                conn.commit()
+                flash("✅ Password reset successfully. Please login.", "success")
+                return redirect('/login')
+            else:
+                flash("❌ Username not found.", "danger")
+    return render_template("forgot.html")
+
+
 
 # ================= RUN APP =================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
