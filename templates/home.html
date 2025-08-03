@@ -1,110 +1,84 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<style>
-  body {
-    background: linear-gradient(to bottom right, #4CBB17, #FFFF00, #0000FF);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+<div class="container mt-5">
+  <h2 class="mb-4">🔐 Admin Dashboard</h2>
 
-  .main-content {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 40px;
-  }
+  <!-- Users List -->
+  <h4>👥 Registered Users</h4>
+  <table class="table table-bordered table-hover">
+    <thead class="table-dark">
+      <tr>
+        <th>Username</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user }}</td>
+        <td>
+          {% if user != 'admin' %}
+          <form action="/admin/delete_user" method="post" class="d-inline">
+            <input type="hidden" name="username" value="{{ user }}">
+            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete user {{ user }}?')">Delete</button>
+          </form>
+          {% else %}
+          <span class="text-muted">Protected</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-  .dashboard-box, .welcome-box {
-    background-color: rgba(255, 255, 255, 0.88);
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    max-width: 900px;
-    width: 100%;
-  }
+  <!-- Files List -->
+  <h4 class="mt-5">📁 Uploaded Files</h4>
+  <table class="table table-bordered table-hover">
+    <thead class="table-dark">
+      <tr>
+        <th>Owner</th>
+        <th>Filename</th>
+        <th>Token</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for username, filename, token in files %}
+      <tr>
+        <td>{{ username }}</td>
+        <td>{{ filename }}</td>
+        <td>{{ token }}</td>
+        <td>
+          <form action="/admin/delete_file" method="post" class="d-inline">
+            <input type="hidden" name="filename" value="{{ filename }}">
+            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete file {{ filename }}?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-  .logo-large {
-    max-width: 90px;
-    margin-bottom: 20px;
-  }
-
-  .token {
-    font-family: monospace;
-    font-weight: bold;
-  }
-
-  .admin-link {
-    position: absolute;
-    top: 90px;
-    right: 40px;
-  }
-</style>
-
-<div class="main-content">
-
-  {% if session.user %}
-    <div class="dashboard-box">
-      <img src="https://img.icons8.com/fluency/96/lock.png" class="logo-large" alt="Logo">
-      <h3>📁 Welcome, <strong>{{ session.user }}</strong>!</h3>
-
-      {% if session.user == 'admin' %}
-        <a href="/admin" class="btn btn-outline-dark admin-link">👑 Go to Admin Dashboard</a>
-      {% endif %}
-
-      <!-- File Upload -->
-      <form action="/upload" method="post" enctype="multipart/form-data" class="mt-4 mb-4">
-        <div class="input-group">
-          <input type="file" name="file" class="form-control" required>
-          <button type="submit" class="btn btn-success">Upload File</button>
-        </div>
-      </form>
-
-      <!-- File Download -->
-      <form action="/download" method="post" class="mb-4">
-        <div class="input-group">
-          <input type="text" name="token" class="form-control" placeholder="Enter file token to download" required>
-          <button type="submit" class="btn btn-primary">Download</button>
-        </div>
-      </form>
-
-      {% if files %}
-        <h5>Your Uploaded Files:</h5>
-        <table class="table table-bordered table-striped mt-3">
-          <thead class="table-dark">
-            <tr>
-              <th>Filename</th>
-              <th>Token</th>
-              <th>QR Code</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for file, token, expiry in files %}
-              <tr>
-                <td>{{ file }}</td>
-                <td class="token">{{ token }}</td>
-                <td>
-                  <a href="{{ url_for('generate_qr', token=token) }}" target="_blank" class="btn btn-sm btn-primary">QR</a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <p class="mt-3 text-muted">You have not uploaded any files yet.</p>
-      {% endif %}
-    </div>
-
-  {% else %}
-    <!-- If not logged in -->
-    <div class="welcome-box text-center">
-      <img src="https://img.icons8.com/color/96/lock.png" class="logo-large" alt="Logo">
-      <h1>🔐 Welcome to Secure File Sharing App</h1>
-      <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
-    </div>
-  {% endif %}
+  <!-- Downloads -->
+  <h4 class="mt-5">⬇️ Download History</h4>
+  <table class="table table-striped">
+    <thead class="table-dark">
+      <tr>
+        <th>Username</th>
+        <th>Filename</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user, file, time in downloads %}
+      <tr>
+        <td>{{ user }}</td>
+        <td>{{ file }}</td>
+        <td>{{ time }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}
-
