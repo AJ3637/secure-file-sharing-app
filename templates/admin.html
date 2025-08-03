@@ -1,92 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin Dashboard | Secure File Sharing</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f0f2f5;
-        }
-        .logo {
-            width: 50px;
-            margin-right: 10px;
-        }
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary px-4">
-        <a class="navbar-brand d-flex align-items-center" href="/">
-            <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
-            Secure File Sharing (Admin)
-        </a>
-        <div class="ms-auto">
-            <a href="/" class="btn btn-light me-2">🏠 Home</a>
-            <a href="/logout" class="btn btn-outline-light">Logout</a>
-        </div>
-    </nav>
+{% extends "layout.html" %}
 
-    <div class="container mt-4">
-        <div class="row g-4">
-            <!-- Users Card -->
-            <div class="col-md-4">
-                <div class="card shadow">
-                    <div class="card-body">
-                        <h5 class="card-title">👥 Registered Users</h5>
-                        <ul class="list-group list-group-flush">
-                            {% for user in users %}
-                                <li class="list-group-item">{{ user }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
+{% block content %}
+<div class="container mt-5">
+  <div class="content-wrapper">
+    <h2 class="text-center mb-4">Admin Dashboard</h2>
 
-            <!-- Uploaded Files Card -->
-            <div class="col-md-4">
-                <div class="card shadow">
-                    <div class="card-body">
-                        <h5 class="card-title">📁 Uploaded Files</h5>
-                        <ul class="list-group list-group-flush">
-                            {% for file in files %}
-                                <li class="list-group-item">
-                                    <strong>{{ file[1] }}</strong> <br>
-                                    by <em>{{ file[0] }}</em><br>
-                                    Token: <code>{{ file[2] }}</code>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
+    <h5>👥 Registered Users</h5>
+    <ul class="list-group mb-4">
+      {% for u in users %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ u }}
+        </li>
+      {% endfor %}
+    </ul>
 
-            <!-- Download Logs Card -->
-            <div class="col-md-4">
-                <div class="card shadow">
-                    <div class="card-body">
-                        <h5 class="card-title">📊 Download Logs</h5>
-                        <ul class="list-group list-group-flush">
-                            {% for log in downloads %}
-                                <li class="list-group-item">
-                                    {{ log[0] }} downloaded <strong>{{ log[1] }}</strong><br>
-                                    <small class="text-muted">{{ log[2] }}</small>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <h5>📂 Uploaded Files</h5>
+    <table class="table table-striped table-bordered mb-4">
+      <thead><tr><th>User</th><th>Filename</th><th>Token</th></tr></thead>
+      <tbody>
+        {% for f in files %}
+          <tr><td>{{ f[0] }}</td><td>{{ f[1] }}</td><td>{{ f[2] }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
-        <footer class="text-center mt-4 mb-2">
-            <small class="text-muted">© Secure File Sharing Platform</small>
-        </footer>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <h5>⬇️ Download Logs</h5>
+    <table class="table table-striped table-bordered">
+      <thead><tr><th>User</th><th>File</th><th>Timestamp</th></tr></thead>
+      <tbody>
+        {% for d in downloads %}
+          <tr><td>{{ d[0] }}</td><td>{{ d[1] }}</td><td>{{ d[2] }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
