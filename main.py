@@ -200,28 +200,35 @@ def logout():
 def upload():
     if 'user' not in session:
         return redirect('/')
-    file = request.files['file']
-    filename = file.filename
-    if not filename:
+
+    file = request.files.get('file')
+    if not file or file.filename == '':
         flash("⚠️ Invalid file.", "warning")
         return redirect('/')
-    path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(path)
 
-    with open(path, 'rb') as f:
+    filename = file.filename
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+
+    # Encrypt the uploaded file
+    with open(filepath, 'rb') as f:
         encrypted = fernet.encrypt(f.read())
-    with open(path, 'wb') as f:
+    with open(filepath, 'wb') as f:
         f.write(encrypted)
 
     token = Fernet.generate_key().decode()[:16]
-    expiry = None
+    expiry = None  # No expiry
+
+    # Insert file info into DB (with column names)
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
-        c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
+        c.execute("INSERT INTO files (username, filename, token, expiry) VALUES (?, ?, ?, ?)", 
+                  (session['user'], filename, token, expiry))
         conn.commit()
 
-    flash(f"✅ File uploaded! Token: {token} ", "success")
+    flash(f"✅ File uploaded! Token: {token}", "success")
     return redirect('/')
+
 
 # ================= TOKEN DOWNLOAD (POST + GET) =================
 @app.route('/download', methods=['POST'])
@@ -311,6 +318,7 @@ def forgot_password():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
