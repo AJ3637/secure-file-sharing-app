@@ -33,31 +33,33 @@ with sqlite3.connect("app.db") as conn:
 # ================= HOME PAGE =================
 @app.route('/')
 def home():
-    if 'user' in session:
-        username = session['user']
-        if username == 'admin':
-            # Render admin dashboard
-            with sqlite3.connect("app.db") as conn:
-                c = conn.cursor()
-                c.execute("SELECT username FROM users")
-                users = [row[0] for row in c.fetchall()]
+    if 'user' not in session:
+        # Not logged in: show welcome page with login/register
+        return render_template("home.html", files=[], session={})
 
-                c.execute("SELECT username, filename, token FROM files")
-                files = c.fetchall()
+    username = session['user']
+    if username == 'admin':
+        # Admin dashboard
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT username FROM users")
+            users = [row[0] for row in c.fetchall()]
 
-                c.execute("SELECT username, filename, timestamp FROM downloads")
-                downloads = c.fetchall()
+            c.execute("SELECT username, filename, token FROM files")
+            files = c.fetchall()
 
-            return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
-        else:
-            # Render regular user home
-            with sqlite3.connect("app.db") as conn:
-                c = conn.cursor()
-                c.execute("SELECT filename, token FROM files WHERE username=?", (username,))
-                files = c.fetchall()
-            return render_template("home.html", files=files, session=session)
+            c.execute("SELECT username, filename, timestamp FROM downloads")
+            downloads = c.fetchall()
+
+        return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
     else:
-        return render_template("home.html", files=[], session=session)
+        # Normal user dashboard
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT filename, token FROM files WHERE username=?", (username,))
+            files = c.fetchall()
+        return render_template("home.html", files=files, session=session)
+
 
 
 # ================= REGISTER =================
@@ -254,6 +256,7 @@ def download_success(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
