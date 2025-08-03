@@ -33,14 +33,32 @@ with sqlite3.connect("app.db") as conn:
 # ================= HOME PAGE =================
 @app.route('/')
 def home():
-    files = []
-    logo_url = url_for('static', filename='logo.png')
     if 'user' in session:
-        with sqlite3.connect("app.db") as conn:
-            c = conn.cursor()
-            c.execute("SELECT filename, token, expiry FROM files WHERE username=?", (session['user'],))
-            files = c.fetchall()
-    return render_template("home.html", files=files, session=session, logo=logo_url)
+        username = session['user']
+        if username == 'admin':
+            # Render admin dashboard
+            with sqlite3.connect("app.db") as conn:
+                c = conn.cursor()
+                c.execute("SELECT username FROM users")
+                users = [row[0] for row in c.fetchall()]
+
+                c.execute("SELECT username, filename, token FROM files")
+                files = c.fetchall()
+
+                c.execute("SELECT username, filename, timestamp FROM downloads")
+                downloads = c.fetchall()
+
+            return render_template("admin.html", users=users, files=files, downloads=downloads, session=session)
+        else:
+            # Render regular user home
+            with sqlite3.connect("app.db") as conn:
+                c = conn.cursor()
+                c.execute("SELECT filename, token FROM files WHERE username=?", (username,))
+                files = c.fetchall()
+            return render_template("home.html", files=files, session=session)
+    else:
+        return render_template("home.html", files=[], session=session)
+
 
 # ================= REGISTER =================
 @app.route('/register', methods=['GET', 'POST'])
@@ -236,6 +254,7 @@ def download_success(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
