@@ -3,172 +3,93 @@
 {% block content %}
 <div class="container mt-5">
 
-  {% if session.user == 'admin' %}
-  <!-- ================= Admin Dashboard ================= -->
-  <h2 class="mb-4">🔐 Admin Dashboard</h2>
+  {% if session.user %}
+    <!-- Welcome Section -->
+    <div class="text-center mb-4">
+      <h2>🔐 Welcome, {{ session.user }}</h2>
+      <p>Upload your files securely and share via token or QR.</p>
+    </div>
 
-  <!-- Users List -->
-  <h4>👥 Registered Users</h4>
-  <table class="table table-bordered table-hover">
-    <thead class="table-dark">
-      <tr>
-        <th>Username</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for user in users %}
-      <tr>
-        <td>{{ user }}</td>
-        <td>
-          {% if user != 'admin' %}
-          <form action="/admin/delete_user" method="post" class="d-inline">
-            <input type="hidden" name="username" value="{{ user }}">
-            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete user {{ user }}?')">Delete</button>
-          </form>
-          {% else %}
-          <span class="text-muted">Protected</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <!-- Files List -->
-  <h4 class="mt-5">📁 Uploaded Files</h4>
-  <table class="table table-bordered table-hover">
-    <thead class="table-dark">
-      <tr>
-        <th>Owner</th>
-        <th>Filename</th>
-        <th>Token</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for username, filename, token in files %}
-      <tr>
-        <td>{{ username }}</td>
-        <td>{{ filename }}</td>
-        <td>{{ token }}</td>
-        <td>
-          <form action="/admin/delete_file" method="post" class="d-inline">
-            <input type="hidden" name="filename" value="{{ filename }}">
-            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete file {{ filename }}?')">Delete</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <!-- Downloads -->
-  <h4 class="mt-5">⬇️ Download History</h4>
-  <table class="table table-striped">
-    <thead class="table-dark">
-      <tr>
-        <th>Username</th>
-        <th>Filename</th>
-        <th>Timestamp</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for user, file, time in downloads %}
-      <tr>
-        <td>{{ user }}</td>
-        <td>{{ file }}</td>
-        <td>{{ time }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  {% elif session.user %}
-  <!-- ============== Logged-In Regular User Dashboard ============== -->
-  <div class="text-center mb-4">
-    <h2>🔐 Welcome, {{ session.user }}</h2>
     {% if session.user == 'admin' %}
     <div class="mb-3">
       <a href="/admin" class="btn btn-outline-dark">⚙️ Go to Admin Dashboard</a>
     </div>
     {% endif %}
 
-    <p>Upload your files securely and share via token or QR.</p>
-  </div>
+    <!-- Upload Form -->
+    <form method="post" action="/upload" enctype="multipart/form-data" class="mb-4">
+      <div class="input-group">
+        <input type="file" name="file" class="form-control" required>
+        <button type="submit" class="btn btn-success">Upload</button>
+      </div>
+    </form>
 
-  <form method="post" action="/upload" enctype="multipart/form-data" class="mb-4">
-    <div class="input-group">
-      <input type="file" name="file" class="form-control" required>
-      <button type="submit" class="btn btn-success">Upload</button>
-    </div>
-  </form>
+    <!-- Uploaded Files -->
+    <h4>Your Uploaded Files</h4>
+    {% if files %}
+    <table class="table table-bordered table-striped">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Token</th>
+          <th>QR Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for filename, token in files %}
+        <tr>
+          <td>{{ filename }}</td>
+          <td>{{ token }}</td>
+          <td><img src="/qr/{{ token }}" alt="QR Code" width="100"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No files uploaded yet.</p>
+    {% endif %}
 
-  <h4>Your Uploaded Files</h4>
-  {% if files %}
-  <table class="table table-bordered table-striped">
-    <thead>
-      <tr>
-        <th>Filename</th>
-        <th>Token</th>
-        <th>QR Code</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for filename, token in files %}
-      <tr>
-        <td>{{ filename }}</td>
-        <td>{{ token }}</td>
-        <td><img src="/qr/{{ token }}" alt="QR Code" width="100"></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <!-- Download By Token -->
+    <hr>
+    <h5>Download File by Token</h5>
+    <form method="post" action="/download">
+      <div class="input-group">
+        <input type="text" name="token" class="form-control" placeholder="Enter token..." required>
+        <button type="submit" class="btn btn-primary">Download</button>
+      </div>
+    </form>
+
+    <!-- Admin Logs (Only for Admin) -->
+    {% if session.user == 'admin' and logs %}
+    <hr>
+    <h4 class="mt-4">⬇️ Download Logs for Your Files</h4>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Downloaded By</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for filename, user, time in logs %}
+        <tr>
+          <td>{{ filename }}</td>
+          <td>{{ user }}</td>
+          <td>{{ time }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
   {% else %}
-  <p class="text-muted">No files uploaded yet.</p>
-  {% endif %}
- 
-  {% if session.user == 'admin' %}
-  <h4 class="mt-4">⬇️ Download Logs for Your Files</h4>
-  <table class="table table-striped">
-   <thead>
-     <tr>
-       <th>Filename</th>
-       <th>Downloaded By</th>
-       <th>Timestamp</th>
-     </tr>
-   </thead>
-   <tbody>
-     {% for filename, user, time in logs %}
-     <tr>
-       <td>{{ filename }}</td>
-       <td>{{ user }}</td>
-       <td>{{ time }}</td>
-     </tr>
-     {% endfor %}
-   </tbody>
- </table>
- {% endif %}
-
-
-  <hr>
-  <h5>Download File by Token</h5>
-  <form method="post" action="/download">
-    <div class="input-group">
-      <input type="text" name="token" class="form-control" placeholder="Enter token..." required>
-      <button type="submit" class="btn btn-primary">Download</button>
+    <!-- Guest View -->
+    <div class="text-center">
+      <h2>🔐 Welcome to Secure File Sharing App</h2>
+      <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
     </div>
-  </form>
-
-  {% else %}
-  <!-- ============== Guest View ============== -->
-  <div class="text-center">
-    <h2>🔐 Welcome to Secure File Sharing App</h2>
-    <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
-  </div>
   {% endif %}
 
 </div>
 {% endblock %}
-
-
