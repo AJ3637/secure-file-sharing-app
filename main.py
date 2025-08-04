@@ -154,6 +154,26 @@ def logout():
     flash("✅ Logged out successfully.", "info")
     return redirect('/')
 
+# ==============RESET PASSWORD =================
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        uname = request.form['username']
+        new_pwd = request.form['new_password']
+        with sqlite3.connect("app.db") as conn:
+            c = conn.cursor()
+            c.execute("SELECT username FROM users WHERE username=?", (uname,))
+            if c.fetchone():
+                hashed_pwd = generate_password_hash(new_pwd)
+                c.execute("UPDATE users SET password=? WHERE username=?", (hashed_pwd, uname))
+                conn.commit()
+                flash("🔐 Password reset successfully. Please login.", "success")
+                return redirect('/login')
+            else:
+                flash("❌ Username not found.", "danger")
+    return render_template("reset_password.html")
+
+
 # ================= FILE UPLOAD =================
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -234,6 +254,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
 
 
