@@ -88,6 +88,12 @@
   <!-- ============== Logged-In Regular User Dashboard ============== -->
   <div class="text-center mb-4">
     <h2>🔐 Welcome, {{ session.user }}</h2>
+    {% if session.user == 'admin' %}
+    <div class="mb-3">
+      <a href="/admin" class="btn btn-outline-dark">⚙️ Go to Admin Dashboard</a>
+    </div>
+    {% endif %}
+
     <p>Upload your files securely and share via token or QR.</p>
   </div>
 
@@ -121,6 +127,29 @@
   {% else %}
   <p class="text-muted">No files uploaded yet.</p>
   {% endif %}
+ 
+  {% if session.user == 'admin' %}
+  <h4 class="mt-4">⬇️ Download Logs for Your Files</h4>
+  <table class="table table-striped">
+   <thead>
+     <tr>
+       <th>Filename</th>
+       <th>Downloaded By</th>
+       <th>Timestamp</th>
+     </tr>
+   </thead>
+   <tbody>
+     {% for filename, user, time in logs %}
+     <tr>
+       <td>{{ filename }}</td>
+       <td>{{ user }}</td>
+       <td>{{ time }}</td>
+     </tr>
+     {% endfor %}
+   </tbody>
+ </table>
+ {% endif %}
+
 
   <hr>
   <h5>Download File by Token</h5>
@@ -141,4 +170,5 @@
 
 </div>
 {% endblock %}
+
 
