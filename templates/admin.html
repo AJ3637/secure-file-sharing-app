@@ -10,16 +10,32 @@
       {% for u in users %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
           {{ u }}
+          {% if u != 'admin' %}
+          <form action="/admin/delete_user/{{ u }}" method="post" class="d-inline">
+            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete user {{ u }}?')">Delete</button>
+          </form>
+          {% else %}
+          <span class="text-muted">Protected</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
 
     <h5>📂 Uploaded Files</h5>
     <table class="table table-striped table-bordered mb-4">
-      <thead><tr><th>User</th><th>Filename</th><th>Token</th></tr></thead>
+      <thead><tr><th>User</th><th>Filename</th><th>Token</th><th>Action</th></tr></thead>
       <tbody>
         {% for f in files %}
-          <tr><td>{{ f[0] }}</td><td>{{ f[1] }}</td><td>{{ f[2] }}</td></tr>
+          <tr>
+            <td>{{ f[0] }}</td>
+            <td>{{ f[1] }}</td>
+            <td>{{ f[2] }}</td>
+            <td>
+              <form action="/admin/delete_file/{{ f[0] }}/{{ f[1] }}" method="post" class="d-inline">
+                <button class="btn btn-sm btn-danger" onclick="return confirm('Delete file {{ f[1] }}?')">Delete</button>
+              </form>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
