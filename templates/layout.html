@@ -106,8 +106,22 @@
   </nav>
 
   <div class="content-wrapper">
-    {% block content %}{% endblock %}
-  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
 
   <footer>
     <p class="text-muted mb-0">© 2025 Secure File Sharing App | Built with Flask & Bootstrap</p>
@@ -128,4 +142,5 @@
   </script>
 </body>
 </html>
+
 
