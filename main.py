@@ -106,7 +106,8 @@ def delete_user(username):
         c.execute("DELETE FROM downloads WHERE username=?", (username,))
         c.execute("DELETE FROM logins WHERE username=?", (username,))
         conn.commit()
-    flash(f"🗑️ Deleted user: {username}", "info")
+    flash(f"🗑️ User '{username}' deleted successfully.", "success")
+
     return redirect('/admin')
 
 # ================= DELETE FILE =================
@@ -124,7 +125,8 @@ def delete_file(username, filename):
         c.execute("DELETE FROM files WHERE username=? AND filename=?", (username, filename))
         c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
         conn.commit()
-    flash(f"🗑️ Deleted file: {filename} by {username}", "info")
+    flash(f"🗑️ File '{filename}' from user '{username}' deleted successfully.", "success")
+
     return redirect('/admin')
 
 # ================= LOGIN =================
@@ -254,6 +256,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
 
 
