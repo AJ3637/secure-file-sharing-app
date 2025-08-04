@@ -106,9 +106,9 @@ def delete_user(username):
         c.execute("DELETE FROM downloads WHERE username=?", (username,))
         c.execute("DELETE FROM logins WHERE username=?", (username,))
         conn.commit()
-    flash(f"🗑️ User '{username}' deleted successfully.", "success")
+        flash(f"🗑️ User '{username}' deleted successfully.", "success")
 
-    return redirect('/admin')
+        return redirect('/admin')
 
 # ================= DELETE FILE =================
 @app.route('/admin/delete_file/<username>/<filename>', methods=['POST'])
@@ -125,9 +125,9 @@ def delete_file(username, filename):
         c.execute("DELETE FROM files WHERE username=? AND filename=?", (username, filename))
         c.execute("DELETE FROM downloads WHERE filename=?", (filename,))
         conn.commit()
-    flash(f"🗑️ File '{filename}' from user '{username}' deleted successfully.", "success")
+        flash(f"🗑️ File '{filename}' from user '{username}' deleted successfully.", "success")
 
-    return redirect('/admin')
+        return redirect('/admin')
 
 # ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
@@ -204,8 +204,8 @@ def upload():
         c.execute("INSERT INTO files VALUES (?, ?, ?, ?)", (session['user'], filename, token, expiry))
         conn.commit()
 
-    flash(f"✅ File uploaded! Token: {token}", "success")
-    return redirect('/')
+        flash(f"✅ File uploaded! Token: {token}", "success")
+        return redirect('/')
 
 # ================= TOKEN DOWNLOAD =================
 @app.route('/download', methods=['POST'])
@@ -256,6 +256,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
 
 
