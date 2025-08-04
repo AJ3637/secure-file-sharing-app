@@ -3,6 +3,7 @@ import os, sqlite3, qrcode, json
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from io import BytesIO
 
 app = Flask(__name__)
@@ -187,9 +188,19 @@ def upload():
         flash("⚠️ Invalid file.", "warning")
         return redirect('/')
 
-    filename = file.filename
+    filename = secure_filename(file.filename)
+    base, ext = os.path.splitext(filename)
+    counter = 1
     filepath = os.path.join(UPLOAD_FOLDER, filename)
+
+# 🔁 Auto-rename if file exists
+    while os.path.exists(filepath):
+        filename = f"{base}_{counter}{ext}"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        counter += 1
+
     file.save(filepath)
+
 
     with open(filepath, 'rb') as f:
         encrypted = fernet.encrypt(f.read())
@@ -256,6 +267,7 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
 
 
