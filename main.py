@@ -42,7 +42,18 @@ def home():
         c = conn.cursor()
         c.execute("SELECT filename, token FROM files WHERE username=?", (user,))
         files = c.fetchall()
-    return render_template("home.html", files=files, session=session)
+          
+        logs = []
+        if user == 'admin':
+            c.execute("""
+                SELECT d.filename, d.username, d.timestamp 
+                FROM downloads d
+                JOIN files f ON d.filename = f.filename
+                WHERE f.username = ?
+            """, (user,))
+            logs = c.fetchall()
+
+    return render_template("home.html", files=files, session=session, logs=logs)
 
 
 # ================= REGISTER =================
@@ -222,4 +233,5 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
