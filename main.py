@@ -36,13 +36,13 @@ def home():
     user = session.get('user')
 
     if not user:
-        return render_template("home.html", files=[], session={})
+        return render_template("home.html", files=[], session={}, logs=[])
 
     with sqlite3.connect("app.db") as conn:
         c = conn.cursor()
         c.execute("SELECT filename, token FROM files WHERE username=?", (user,))
         files = c.fetchall()
-          
+
         logs = []
         if user == 'admin':
             c.execute("""
@@ -54,6 +54,7 @@ def home():
             logs = c.fetchall()
 
     return render_template("home.html", files=files, session=session, logs=logs)
+
 
 
 # ================= REGISTER =================
@@ -233,5 +234,6 @@ def generate_qr(token):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
 
