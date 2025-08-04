@@ -53,7 +53,6 @@
       text-shadow: 0 0 5px #4CBB17, 0 0 10px #4CBB17;
     }
 
-    /* Dark mode styles */
     html[data-theme='dark'] body {
       background: #121212;
       color: #eee;
@@ -72,6 +71,11 @@
       color: #0f0;
       text-shadow: 0 0 10px #0f0;
     }
+
+    .nav-link.active {
+      font-weight: bold;
+      color: #007bff !important;
+    }
   </style>
 </head>
 <body>
@@ -82,11 +86,17 @@
         <span class="glow-text fs-4">SecureShare</span>
       </a>
 
-      <div class="d-flex align-items-center">
-        <button onclick="toggleTheme()" class="btn btn-sm btn-outline-dark me-3">🌓 Toggle Theme</button>
+      <div class="d-flex align-items-center gap-3">
+        <a href="/" class="btn btn-outline-primary btn-sm">🏠 Upload / Download</a>
+        {% if session.user == 'admin' %}
+          <a href="/admin" class="btn btn-outline-dark btn-sm">⚙️ Admin Dashboard</a>
+        {% endif %}
+
+        <button onclick="toggleTheme()" class="btn btn-sm btn-outline-dark">🌓 Theme</button>
+
         {% if session.user %}
-          <span class="me-3">Logged in as <strong>{{ session.user }}</strong></span>
-          <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+          <span class="ms-2">👤 <strong>{{ session.user }}</strong></span>
+          <a href="/logout" class="btn btn-outline-danger btn-sm ms-2">Logout</a>
         {% endif %}
       </div>
     </div>
