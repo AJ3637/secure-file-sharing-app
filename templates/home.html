@@ -109,7 +109,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for filename, token, expiry in files %}
+      {% for filename, token in files %}
       <tr>
         <td>{{ filename }}</td>
         <td>{{ token }}</td>
@@ -141,3 +141,4 @@
 
 </div>
 {% endblock %}
+
