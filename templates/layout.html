@@ -87,10 +87,13 @@
       </a>
 
       <div class="d-flex align-items-center gap-3">
-        <a href="/" class="btn btn-outline-primary btn-sm">🏠 Upload / Download</a>
-        {% if session.user == 'admin' %}
-          <a href="/admin" class="btn btn-outline-dark btn-sm">⚙️ Admin Dashboard</a>
+        {% if session.user %}
+          <a href="/" class="btn btn-outline-primary btn-sm">🏠 Upload / Download</a>
+          {% if session.user == 'admin' %}
+            <a href="/admin" class="btn btn-outline-dark btn-sm">⚙️ Admin Dashboard</a>
+          {% endif %}
         {% endif %}
+
 
         <button onclick="toggleTheme()" class="btn btn-sm btn-outline-dark">🌓 Theme</button>
 
@@ -125,3 +128,4 @@
   </script>
 </body>
 </html>
+
